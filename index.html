@@ -1,0 +1,2615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a1628" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Team Stats" />
+  <title>Team Stat Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a1628; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0a1628; }
+    ::-webkit-scrollbar-thumb { background: #4db8ff; border-radius: 2px; }
+    .nav-btn { background: none; border: none; cursor: pointer; font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 2px; padding: 10px 20px; transition: all 0.2s; }
+    .game-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(77,184,255,0.15); border-radius: 8px; padding: 14px 18px; cursor: pointer; transition: all 0.2s; margin-bottom: 8px; }
+    .game-card:hover { background: rgba(77,184,255,0.1); border-color: rgba(77,184,255,0.4); }
+    .game-card.played { border-left: 3px solid #4db8ff; }
+    .stat-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(77,184,255,0.4); background: rgba(77,184,255,0.1); color: #4db8ff; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+    .stat-btn:hover { background: rgba(77,184,255,0.3); }
+    .score-input { background: rgba(255,255,255,0.08); border: 1px solid rgba(77,184,255,0.3); border-radius: 6px; color: #fff; font-family: 'Bebas Neue'; font-size: 28px; width: 60px; text-align: center; padding: 6px; outline: none; -moz-appearance: textfield; }
+    .score-input:focus { border-color: #4db8ff; }
+    .score-input::-webkit-inner-spin-button, .score-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .mvp-select { background: #0d2347; border: 1px solid rgba(77,184,255,0.3); border-radius: 6px; color: #fff; font-family: 'Barlow', sans-serif; padding: 8px 12px; width: 100%; outline: none; cursor: pointer; }
+    .section-title { font-size: 13px; font-family: 'Barlow'; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: #4db8ff; margin-bottom: 12px; opacity: 0.8; }
+    input[type=text], input[type=number] { background: rgba(255,255,255,0.08); border: 1px solid rgba(77,184,255,0.3); border-radius: 6px; color: #fff; font-family: 'Barlow'; padding: 8px 12px; outline: none; }
+    input[type=text]:focus, input[type=number]:focus { border-color: #4db8ff; }
+    select option { background: #0d2347; color: #fff; }
+    .shirt-input { width: 52px; background: rgba(255,255,255,0.06); border: 1px solid rgba(77,184,255,0.2); border-radius: 6px; color: #7dd3fc; font-family: 'Bebas Neue'; font-size: 18px; text-align: center; padding: 6px 4px; outline: none; -moz-appearance: textfield; }
+    .shirt-input::-webkit-inner-spin-button, .shirt-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .shirt-input:focus { border-color: #4db8ff; }
+    .team-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(77,184,255,0.15); border-radius: 10px; padding: 18px 20px; cursor: pointer; transition: all 0.2s; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .team-card:hover { background: rgba(77,184,255,0.08); border-color: rgba(77,184,255,0.4); transform: translateX(4px); }
+    .btn { border: none; border-radius: 6px; cursor: pointer; font-family: 'Barlow'; font-weight: 600; padding: 10px 20px; transition: all 0.2s; }
+    .btn-primary { background: rgba(77,184,255,0.15); border: 1px solid #4db8ff; color: #4db8ff; }
+    .btn-primary:hover { background: rgba(77,184,255,0.3); }
+    .btn-danger { background: none; border: 1px solid rgba(248,113,113,0.3); color: #f87171; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgba(77,184,255,0.3); border-top-color: #4db8ff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    const SUPABASE_URL = "https://cidrictgperdtxmqaknm.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpZHJpY3RncGVyZHR4bXFha25tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MjIxMzQsImV4cCI6MjA5NTk5ODEzNH0.7EGyPucYhz8TJGuv9npMAIlC1ktpSFxcrrrUhdte0ao";
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const TEAM_GAMES = {
+      "Lt Blue": [
+        { id: 101, date:"May 27", day:"Wed", time:"5:45 PM", home:"Lt Blue", away:"Green",   field:"11" },
+        { id: 102, date:"Jun 1",  day:"Mon", time:"7:15 PM", home:"Lt Blue", away:"Maroon",  field:"11" },
+        { id: 103, date:"Jun 8",  day:"Mon", time:"5:45 PM", home:"Lt Blue", away:"Tie Dye", field:"10" },
+        { id: 104, date:"Jun 10", day:"Wed", time:"7:15 PM", home:"Lt Blue", away:"White",   field:"10" },
+        { id: 111, date:"Jun 17", day:"Wed", time:"7:15 PM", home:"Lt Blue", away:"Orange",  field:"11" },
+        { id: 105, date:"Jun 22", day:"Mon", time:"5:45 PM", home:"Red",     away:"Lt Blue", field:"10" },
+        { id: 106, date:"Jun 29", day:"Mon", time:"7:15 PM", home:"Gold",    away:"Lt Blue", field:"10" },
+        { id: 107, date:"Jul 6",  day:"Mon", time:"7:15 PM", home:"Lt Blue", away:"Dk Blue", field:"11" },
+        { id: 108, date:"Jul 29", day:"Wed", time:"6:00 PM", home:"Black",   away:"Lt Blue", field:"CP10" },
+        { id: 109, date:"Aug 10", day:"Mon", time:"6:00 PM", home:"Lt Blue", away:"White",   field:"10" },
+        { id: 110, date:"Aug 17", day:"Mon", time:"6:00 PM", home:"Tie Dye", away:"Lt Blue", field:"11" },
+      ],
+      "Taqueria 1": [
+        { id: 201, date:"Jun 2",  day:"Tue", time:"5:45 PM", home:"Taqueria 1",           away:"Taqueria 2",       field:"CP13" },
+        { id: 202, date:"Jun 9",  day:"Tue", time:"7:15 PM", home:"Pink FC",               away:"Taqueria 1",       field:"CP10" },
+        { id: 203, date:"Jun 16", day:"Tue", time:"5:45 PM", home:"Taqueria 1",            away:"H V Home Experts", field:"CP11" },
+        { id: 204, date:"Jun 30", day:"Tue", time:"5:45 PM", home:"FC Oshkosh",            away:"Taqueria 1",       field:"CP11" },
+        { id: 205, date:"Jul 7",  day:"Tue", time:"7:15 PM", home:"Taqueria 1",            away:"U-50",             field:"CP13" },
+        { id: 206, date:"Jul 14", day:"Tue", time:"7:15 PM", home:"OMS",                   away:"Taqueria 1",       field:"CP10" },
+        { id: 207, date:"Jul 21", day:"Tue", time:"5:45 PM", home:"Victorious Secret",     away:"Taqueria 1",       field:"CP13" },
+        { id: 208, date:"Aug 4",  day:"Tue", time:"5:30 PM", home:"Real Coholics",         away:"Taqueria 1",       field:"CP13" },
+        { id: 209, date:"Aug 11", day:"Tue", time:"5:30 PM", home:"Third String All-Stars",away:"Taqueria 1",       field:"CP11" },
+      ],
+      "Parker Johns": [
+        { id: 401, date:"Jun 7",  day:"Sun", time:"1:10 PM", home:"Fire Silver",        away:"Parker Johns",       field:"Calavera Springs 1" },
+        { id: 402, date:"Jun 14", day:"Sun", time:"2:50 PM", home:"Parker Johns",       away:"SunSeekers",         field:"USA Complex 11" },
+        { id: 403, date:"Jun 21", day:"Sun", time:"4:50 PM", home:"Parker Johns",       away:"Luigi's Pizza & Pasta", field:"USA Complex 12" },
+        { id: 404, date:"Jun 28", day:"Sun", time:"2:50 PM", home:"FC Green Bay",       away:"Parker Johns",       field:"USA Complex 12" },
+        { id: 405, date:"Jul 12", day:"Sun", time:"2:50 PM", home:"SunSeekers",         away:"Parker Johns",       field:"USA Complex 13" },
+        { id: 406, date:"Jul 19", day:"Sun", time:"4:50 PM", home:"Luigi's Pizza",      away:"Parker Johns",       field:"USA Complex 14" },
+        { id: 407, date:"Aug 2",  day:"Sun", time:"4:50 PM", home:"Parker Johns",       away:"FC Green Bay",       field:"USA Complex 12" },
+        { id: 408, date:"Aug 9",  day:"Sun", time:"2:50 PM", home:"Parker Johns",       away:"Prevea",             field:"USA Complex 12" },
+      ],
+      "Taqueria 2": [
+        { id: 301, date:"Jun 2",  day:"Tue", time:"5:45 PM", home:"Taqueria 1",            away:"Taqueria 2",   field:"CP13" },
+        { id: 302, date:"Jun 9",  day:"Tue", time:"5:45 PM", home:"Taqueria 2",            away:"H V Home Experts", field:"CP13" },
+        { id: 303, date:"Jun 16", day:"Tue", time:"5:45 PM", home:"U-50",                  away:"Taqueria 2",   field:"CP13" },
+        { id: 304, date:"Jun 23", day:"Tue", time:"5:45 PM", home:"FC Oshkosh",            away:"Taqueria 2",   field:"CP12" },
+        { id: 305, date:"Jun 30", day:"Tue", time:"7:15 PM", home:"Pink FC",               away:"Taqueria 2",   field:"CP12" },
+        { id: 306, date:"Jul 7",  day:"Tue", time:"5:45 PM", home:"Can't Finish",          away:"Taqueria 2",   field:"CP13" },
+        { id: 307, date:"Jul 14", day:"Tue", time:"5:45 PM", home:"Orange Slices",         away:"Taqueria 2",   field:"CP13" },
+        { id: 308, date:"Jul 28", day:"Tue", time:"5:45 PM", home:"Third String All-Stars",away:"Taqueria 2",   field:"CP13" },
+        { id: 309, date:"Aug 4",  day:"Tue", time:"7:00 PM", home:"Adashun Jones",         away:"Taqueria 2",   field:"CP13" },
+      ],
+    };
+
+    function Loading() {
+      return <div style={{ display:"flex", justifyContent:"center", padding:40 }}><div className="spinner" /></div>;
+    }
+
+    const EDITOR_PIN = "062026";
+
+    function PinModal({ onSuccess, onClose }) {
+      const [pin, setPin] = useState("");
+      const [error, setError] = useState(false);
+      const attempt = () => {
+        if (pin === EDITOR_PIN) { onSuccess(); }
+        else { setError(true); setPin(""); setTimeout(() => setError(false), 1500); }
+      };
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:20 }}>
+          <div style={{ background:"#0d2347", border:"1px solid rgba(77,184,255,0.3)", borderRadius:12, padding:"32px 28px", width:"100%", maxWidth:340, textAlign:"center" }}>
+            <div style={{ fontFamily:"Bebas Neue", fontSize:28, letterSpacing:3, color:"#fff", marginBottom:6 }}>EDITOR ACCESS</div>
+            <div style={{ fontFamily:"Barlow", fontSize:14, color:"#64748b", marginBottom:24 }}>Enter PIN to edit stats</div>
+            <input type="password" inputMode="numeric" placeholder="••••••" value={pin}
+              onChange={e => setPin(e.target.value)}
+              onKeyDown={e => { if(e.key==="Enter") attempt(); }}
+              style={{ width:"100%", textAlign:"center", fontSize:24, letterSpacing:8, marginBottom:16, background: error?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.08)", border:`1px solid ${error?"#f87171":"rgba(77,184,255,0.3)"}`, borderRadius:8, color:"#fff", padding:"12px", outline:"none" }}
+              autoFocus />
+            {error && <div style={{ fontFamily:"Barlow", color:"#f87171", fontSize:13, marginBottom:12 }}>Incorrect PIN</div>}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={onClose} style={{ flex:1, background:"none", border:"1px solid #334155", borderRadius:6, color:"#64748b", padding:"10px", cursor:"pointer", fontFamily:"Barlow", fontSize:14 }}>Cancel</button>
+              <button onClick={attempt} style={{ flex:1, background:"rgba(77,184,255,0.15)", border:"1px solid #4db8ff", borderRadius:6, color:"#4db8ff", padding:"10px", cursor:"pointer", fontFamily:"Barlow", fontSize:14, fontWeight:600 }}>Unlock</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [teams, setTeams] = useState([]);
+      const [activeTeam, setActiveTeam] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [newTeamName, setNewTeamName] = useState("");
+      const [adding, setAdding] = useState(false);
+      const [isEditor, setIsEditor] = useState(() => sessionStorage.getItem("isEditor") === "true");
+      const [showPin, setShowPin] = useState(false);
+
+      const loadTeams = useCallback(async () => {
+        setLoading(true);
+        const { data } = await sb.from("teams").select("*").order("created_at");
+        setTeams(data || []);
+        setLoading(false);
+      }, []);
+
+      useEffect(() => { loadTeams(); }, [loadTeams]);
+
+      const unlockEditor = () => {
+        setIsEditor(true);
+        sessionStorage.setItem("isEditor", "true");
+        setShowPin(false);
+      };
+
+      const lockEditor = () => {
+        setIsEditor(false);
+        sessionStorage.removeItem("isEditor");
+      };
+
+      const addTeam = async () => {
+        if (!newTeamName.trim() || !isEditor) return;
+        setAdding(true);
+        const { data, error } = await sb.from("teams").insert({ name: newTeamName.trim() }).select().single();
+        if (!error && data) {
+          const games = TEAM_GAMES[newTeamName.trim()];
+          if (games) {
+            await sb.from("games").insert(games.map(g => ({ ...g, team_id: data.id })));
+          }
+          setNewTeamName("");
+          await loadTeams();
+        }
+        setAdding(false);
+      };
+
+      const deleteTeam = async (id, e) => {
+        e.stopPropagation();
+        if (!isEditor) return;
+        if (!confirm("Delete this team and all its data?")) return;
+        await sb.from("teams").delete().eq("id", id);
+        await loadTeams();
+      };
+
+      const [showWC, setShowWC] = useState(false);
+
+      if (activeTeam) {
+        return <TeamApp team={activeTeam} isEditor={isEditor} onBack={() => { setActiveTeam(null); loadTeams(); }} />;
+      }
+
+      if (showWC) {
+        return <WorldCupApp isEditor={isEditor} onBack={() => setShowWC(false)} />;
+      }
+
+      return (
+        <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a1628 0%,#0d2347 50%,#0a1628 100%)", fontFamily:"'Bebas Neue','Impact',sans-serif", color:"#e8f4fd" }}>
+          {showPin && <PinModal onSuccess={unlockEditor} onClose={() => setShowPin(false)} />}
+          <div style={{ background:"rgba(77,184,255,0.05)", borderBottom:"1px solid rgba(77,184,255,0.2)", padding:"20px 20px 16px" }}>
+            <div style={{ maxWidth:720, margin:"0 auto", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+              <div>
+                <div style={{ fontSize:38, letterSpacing:4, color:"#fff", lineHeight:1 }}>STAT TRACKER</div>
+                <div style={{ fontSize:14, fontFamily:"Barlow", color:"#4db8ff", fontWeight:300, letterSpacing:2, marginTop:4 }}>2026 SEASON · ALL TEAMS</div>
+              </div>
+              <button onClick={() => isEditor ? lockEditor() : setShowPin(true)}
+                style={{ background: isEditor?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.05)", border:`1px solid ${isEditor?"rgba(74,222,128,0.3)":"rgba(255,255,255,0.1)"}`, borderRadius:8, color:isEditor?"#4ade80":"#475569", padding:"8px 14px", cursor:"pointer", fontFamily:"Barlow", fontSize:12, fontWeight:600, marginTop:4 }}>
+                {isEditor ? "🔓 EDITOR" : "🔒 VIEW ONLY"}
+              </button>
+            </div>
+          </div>
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"24px 20px" }}>
+            <div className="section-title">Select a Team</div>
+            {/* World Cup Banner */}
+            <div onClick={() => setShowWC(true)} style={{ background:"linear-gradient(135deg,rgba(218,165,32,0.15),rgba(77,184,255,0.1))", border:"1px solid rgba(218,165,32,0.4)", borderRadius:10, padding:"16px 20px", marginBottom:20, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ fontFamily:"Bebas Neue", fontSize:24, letterSpacing:3, color:"#fbbf24" }}>🏆 2026 FIFA WORLD CUP</div>
+                <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", marginTop:2 }}>Bracket Challenge · Leaderboard</div>
+              </div>
+              <div style={{ fontFamily:"Barlow", fontSize:13, color:"#fbbf24" }}>ENTER →</div>
+            </div>
+            {loading ? <Loading /> : (
+              <>
+                {teams.length === 0 && (
+                  <div style={{ fontFamily:"Barlow", color:"#475569", fontSize:14, marginBottom:20 }}>No teams yet — add one below!</div>
+                )}
+                {teams.map(team => (
+                  <div key={team.id} className="team-card" onClick={() => setActiveTeam(team)}>
+                    <div style={{ fontFamily:"Bebas Neue", fontSize:26, letterSpacing:2, color:"#e2e8f0" }}>{team.name}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ fontFamily:"Barlow", fontSize:12, color:"#4db8ff" }}>VIEW →</div>
+                      {isEditor && (
+                        <button onClick={(e) => deleteTeam(team.id, e)}
+                          style={{ background:"none", border:"1px solid rgba(248,113,113,0.3)", borderRadius:5, color:"#f87171", padding:"4px 10px", cursor:"pointer", fontFamily:"Barlow", fontSize:12 }}>
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {isEditor && (
+                  <>
+                    <div style={{ display:"flex", gap:10, marginTop:20 }}>
+                      <input type="text" placeholder="New team name..." value={newTeamName}
+                        onChange={e => setNewTeamName(e.target.value)}
+                        onKeyDown={e => { if(e.key==="Enter") addTeam(); }}
+                        style={{ flex:1 }} />
+                      <button className="btn btn-primary" onClick={addTeam} disabled={adding}>
+                        {adding ? <div className="spinner" /> : "+ ADD TEAM"}
+                      </button>
+                    </div>
+                    <div style={{ fontFamily:"Barlow", fontSize:12, color:"#334155", marginTop:10 }}>
+                      💡 Type "Lt Blue", "Taqueria 1", "Taqueria 2", or "Parker Johns" to auto-load schedules
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function TeamApp({ team, onBack, isEditor }) {
+      const [view, setView] = useState("summary");
+      const [activeGame, setActiveGame] = useState(null);
+      const [games, setGames] = useState([]);
+      const [players, setPlayers] = useState([]);
+      const [gameStats, setGameStats] = useState({});
+      const [playerStats, setPlayerStats] = useState({});
+      const [loading, setLoading] = useState(true);
+
+      const loadAll = useCallback(async () => {
+        setLoading(true);
+        const [gRes, pRes, gsRes, psRes] = await Promise.all([
+          sb.from("games").select("*").eq("team_id", team.id),
+          sb.from("players").select("*").eq("team_id", team.id).order("created_at"),
+          sb.from("game_stats").select("*").eq("team_id", team.id),
+          sb.from("player_stats").select("*").eq("team_id", team.id),
+        ]);
+        const monthOrder = {"Jan":0,"Feb":1,"Mar":2,"Apr":3,"May":4,"Jun":5,"Jul":6,"Aug":7,"Sep":8,"Oct":9,"Nov":10,"Dec":11};
+        const parseDate = (g) => {
+          try {
+            const parts = (g.date || "").trim().split(" ");
+            const month = monthOrder[parts[0]];
+            const day = parseInt(parts[1]);
+            if (month === undefined || isNaN(day)) return 9999;
+            return month * 100 + day;
+          } catch { return 9999; }
+        };
+        const sortedGames = (gRes.data || []).sort((a,b) => parseDate(a) - parseDate(b));
+        setGames(sortedGames);
+        setPlayers(pRes.data || []);
+        const gs = {};
+        (gsRes.data || []).forEach(s => { gs[s.game_id] = s; });
+        setGameStats(gs);
+        const ps = {};
+        (psRes.data || []).forEach(s => {
+          if (!ps[s.game_id]) ps[s.game_id] = {};
+          ps[s.game_id][s.player_id] = s;
+        });
+        setPlayerStats(ps);
+        setLoading(false);
+      }, [team.id]);
+
+      useEffect(() => { loadAll(); }, [loadAll]);
+
+      const upsertGameStat = async (gameId, fields) => {
+        const existing = gameStats[gameId];
+        if (existing) {
+          await sb.from("game_stats").update(fields).eq("id", existing.id);
+        } else {
+          await sb.from("game_stats").insert({ game_id: gameId, team_id: team.id, ...fields });
+        }
+        const { data } = await sb.from("game_stats").select("*").eq("game_id", gameId).eq("team_id", team.id).single();
+        setGameStats(prev => ({ ...prev, [gameId]: data }));
+      };
+
+      const upsertPlayerStat = async (gameId, playerId, fields) => {
+        const existing = playerStats[gameId]?.[playerId];
+        if (existing) {
+          await sb.from("player_stats").update(fields).eq("id", existing.id);
+        } else {
+          await sb.from("player_stats").insert({ game_id: gameId, player_id: playerId, team_id: team.id, ...fields });
+        }
+        const { data } = await sb.from("player_stats").select("*").eq("game_id", gameId).eq("player_id", playerId).single();
+        setPlayerStats(prev => ({ ...prev, [gameId]: { ...(prev[gameId]||{}), [playerId]: data } }));
+      };
+
+      const addPlayer = async (name, number) => {
+        const { data } = await sb.from("players").insert({ team_id: team.id, name, number }).select().single();
+        if (data) setPlayers(prev => [...prev, data]);
+      };
+
+      const updatePlayer = async (id, name, number) => {
+        await sb.from("players").update({ name, number }).eq("id", id);
+        setPlayers(prev => prev.map(p => p.id===id ? {...p, name, number} : p));
+      };
+
+      const deletePlayer = async (id) => {
+        await sb.from("players").delete().eq("id", id);
+        setPlayers(prev => prev.filter(p => p.id !== id));
+      };
+
+      const getGS = (gameId) => gameStats[gameId] || { score_us:"", score_them:"", clean_sheet:false, mvp:"" };
+      const getPS = (gameId, playerId) => playerStats[gameId]?.[playerId] || { goals:0, assists:0, yellow_cards:0, red_cards:0, clean_sheet:false, appeared:false };
+
+      const totals = players.map(p => {
+        let goals=0, assists=0, yellowCards=0, redCards=0, mvps=0, cleanSheets=0, appearances=0;
+        Object.entries(playerStats).forEach(([gid, gps]) => {
+          const ps = gps[p.id];
+          if (ps) { goals+=ps.goals||0; assists+=ps.assists||0; yellowCards+=ps.yellow_cards||0; redCards+=ps.red_cards||0; if(ps.clean_sheet) cleanSheets++; if(ps.appeared) appearances++; }
+        });
+        Object.values(gameStats).forEach(gs => { if(gs.mvp===p.id) mvps++; });
+        return { ...p, goals, assists, yellowCards, redCards, mvps, cleanSheets, appearances };
+      }).sort((a,b) => (b.goals+b.assists)-(a.goals+a.assists));
+
+      const rec = {
+        wins:   Object.values(gameStats).filter(g=>g.score_us!==""&&g.score_them!==""&&Number(g.score_us)>Number(g.score_them)).length,
+        losses: Object.values(gameStats).filter(g=>g.score_us!==""&&g.score_them!==""&&Number(g.score_us)<Number(g.score_them)).length,
+        draws:  Object.values(gameStats).filter(g=>g.score_us!==""&&g.score_them!==""&&Number(g.score_us)===Number(g.score_them)).length,
+        cleanSheets: Object.values(gameStats).filter(g=>g.clean_sheet).length,
+        goals: totals.reduce((s,p)=>s+p.goals,0),
+      };
+
+      const activeObj = games.find(g => g.id === activeGame);
+      const activeGS = activeGame ? getGS(activeGame) : null;
+      const opp = activeObj ? (activeObj.home===team.name ? activeObj.away : activeObj.home) : "";
+      const navTo = (v) => { setView(v); setActiveGame(null); };
+
+      if (loading) return (
+        <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a1628 0%,#0d2347 50%,#0a1628 100%)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Loading />
+        </div>
+      );
+
+      return (
+        <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a1628 0%,#0d2347 50%,#0a1628 100%)", fontFamily:"'Bebas Neue','Impact',sans-serif", color:"#e8f4fd" }}>
+
+          {/* HEADER */}
+          <div style={{ background:"rgba(77,184,255,0.05)", borderBottom:"1px solid rgba(77,184,255,0.2)", padding:"0 20px" }}>
+            <div style={{ maxWidth:720, margin:"0 auto" }}>
+              <div style={{ padding:"16px 0 6px", display:"flex", alignItems:"center", gap:12 }}>
+                <button onClick={onBack} style={{ background:"none", border:"none", color:"#4db8ff", cursor:"pointer", fontFamily:"Barlow", fontSize:13, padding:0 }}>← ALL TEAMS</button>
+              </div>
+              <div style={{ display:"flex", alignItems:"baseline", gap:12 }}>
+                <div style={{ fontSize:34, letterSpacing:4, color:"#fff", lineHeight:1 }}>{team.name.toUpperCase()}</div>
+                <div style={{ fontSize:13, fontFamily:"Barlow", color:"#4db8ff", fontWeight:300, letterSpacing:2 }}>2026</div>
+              </div>
+              <div style={{ display:"flex", gap:20, padding:"8px 0 10px", fontFamily:"Barlow", fontSize:13, flexWrap:"wrap" }}>
+                <span style={{ color:"#4ade80" }}>{rec.wins}W</span>
+                <span style={{ color:"#f87171" }}>{rec.losses}L</span>
+                <span style={{ color:"#facc15" }}>{rec.draws}D</span>
+                <span style={{ color:"#94a3b8" }}>⚽ {rec.goals} goals</span>
+                <span style={{ color:"#94a3b8" }}>🧤 {rec.cleanSheets} clean sheets</span>
+              </div>
+              <div style={{ display:"flex", overflowX:"auto" }}>
+                {["summary","schedule","roster","leaderboard"].map(v => (
+                  <button key={v} className="nav-btn" onClick={() => navTo(v)}
+                    style={{ color:view===v&&!activeGame?"#4db8ff":"#64748b", borderBottom:view===v&&!activeGame?"2px solid #4db8ff":"2px solid transparent", whiteSpace:"nowrap" }}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"24px 20px" }}>
+
+            {/* SUMMARY */}
+            {view==="summary" && !activeGame && (
+              <SummaryView games={games} gameStats={gameStats} playerStats={playerStats} players={players} team={team} rec={rec} getGS={getGS} />
+            )}
+
+            {/* SCHEDULE */}
+            {view==="schedule" && !activeGame && (
+              <div>
+                <div className="section-title">Season Games{isEditor?" — Tap to Enter Stats":""}</div>
+                {games.length === 0 && (
+                  <div style={{ fontFamily:"Barlow", color:"#475569", fontSize:14 }}>No games scheduled yet.</div>
+                )}
+                {games.map(g => {
+                  const gs = getGS(g.id);
+                  const played = gs.score_us!==""&&gs.score_them!=="";
+                  const us=Number(gs.score_us), them=Number(gs.score_them);
+                  const result = played?(us>them?"W":us<them?"L":"D"):null;
+                  const opponent = g.home===team.name?g.away:g.home;
+                  const isHome = g.home===team.name;
+                  const mvpPlayer = gs.mvp ? players.find(p=>p.id===gs.mvp) : null;
+                  return (
+                    <div key={g.id} className={`game-card${played?" played":""}`} onClick={() => { setActiveGame(g.id); setView("game"); }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <div style={{ display:"flex", gap:14, alignItems:"center" }}>
+                          <div style={{ textAlign:"center", minWidth:44 }}>
+                            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#64748b", letterSpacing:1 }}>{g.day.toUpperCase()}</div>
+                            <div style={{ fontFamily:"Bebas Neue", fontSize:20, lineHeight:1.1 }}>{g.date}</div>
+                            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#94a3b8" }}>{g.time}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#64748b", marginBottom:2 }}>{isHome?"HOME":"AWAY"} · Field {g.field}</div>
+                            <div style={{ fontFamily:"Barlow", fontSize:16, fontWeight:600, color:"#e2e8f0" }}>vs <span style={{ color:"#7dd3fc" }}>{opponent}</span></div>
+                            {mvpPlayer && <div style={{ fontFamily:"Barlow", fontSize:11, color:"#fbbf24" }}>⭐ MVP: {mvpPlayer.name}</div>}
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                          {played && <div style={{ fontFamily:"Bebas Neue", fontSize:32, color:"#fff", lineHeight:1 }}>{gs.score_us}–{gs.score_them}</div>}
+                          {result && (
+                            <div style={{ width:34, height:34, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Bebas Neue", fontSize:20,
+                              background:result==="W"?"rgba(74,222,128,0.15)":result==="L"?"rgba(248,113,113,0.15)":"rgba(250,204,21,0.15)",
+                              color:result==="W"?"#4ade80":result==="L"?"#f87171":"#facc15" }}>{result}</div>
+                          )}
+                          {!played && isEditor && <div style={{ fontFamily:"Barlow", fontSize:12, color:"#334155" }}>+ ADD STATS</div>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* GAME DETAIL */}
+            {view==="game" && activeGame && activeObj && (
+              <GameDetail
+                game={activeObj} teamName={team.name} opponent={opp}
+                gs={activeGS} players={players}
+                getPS={getPS} isEditor={isEditor}
+                onUpdateGS={(fields) => upsertGameStat(activeGame, fields)}
+                onUpdatePS={(playerId, fields) => upsertPlayerStat(activeGame, playerId, fields)}
+                onBack={() => { setView("schedule"); setActiveGame(null); }}
+              />
+            )}
+
+            {/* ROSTER */}
+            {view==="roster" && (
+              <RosterView players={players} isEditor={isEditor} onAdd={addPlayer} onUpdate={updatePlayer} onDelete={deletePlayer} />
+            )}
+
+            {/* LEADERBOARD */}
+            {view==="leaderboard" && (
+              <div>
+                <div className="section-title">Season Leaderboard</div>
+                {totals.map((t,i) => (
+                  <div key={t.id} style={{
+                    borderRadius:8, marginBottom:8, overflow:"hidden",
+                    background:i===0&&(t.goals+t.assists)>0?"rgba(251,191,36,0.07)":"rgba(255,255,255,0.03)",
+                    border:`1px solid ${i===0&&(t.goals+t.assists)>0?"rgba(251,191,36,0.25)":"rgba(255,255,255,0.06)"}`,
+                  }}>
+                    {/* Player name row */}
+                    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+                      <div style={{ fontFamily:"Bebas Neue", fontSize:18, color:i<3?["#fbbf24","#94a3b8","#b45309"][i]:"#334155", minWidth:20, textAlign:"center" }}>{i+1}</div>
+                      {t.number && <span style={{ fontFamily:"Bebas Neue", fontSize:16, color:"#4db8ff" }}>#{t.number}</span>}
+                      <span style={{ fontFamily:"Barlow", fontSize:15, fontWeight:600, color:"#e2e8f0", flex:1 }}>{t.name}</span>
+                    </div>
+                    {/* Stats row */}
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", padding:"8px 6px" }}>
+                      {[
+                        { label:"APP", val:t.appearances, display:t.appearances, color:"#94a3b8" },
+                        { label:"⚽", val:t.goals, display:t.goals, color:"#4db8ff" },
+                        { label:"🎯", val:t.assists, display:t.assists, color:"#34d399" },
+                        { label:"CARDS", val:t.yellowCards+t.redCards, display:null, color:"#fbbf24", isCards:true, y:t.yellowCards, r:t.redCards },
+                        { label:"🧤", val:t.cleanSheets, display:t.cleanSheets, color:"#4db8ff" },
+                        { label:"⭐", val:t.mvps, display:t.mvps, color:"#fbbf24" },
+                      ].map(({label,val,display,color,isCards,y,r}) => (
+                        <div key={label} style={{ textAlign:"center" }}>
+                          {isCards ? (
+                            <div style={{ lineHeight:1, marginBottom:2 }}>
+                              <span style={{ fontFamily:"Bebas Neue", fontSize:18, color:y>0?"#fbbf24":"#334155" }}>{y}🟨</span>
+                              <span style={{ fontFamily:"Bebas Neue", fontSize:18, color:r>0?"#f87171":"#334155", marginLeft:2 }}>{r}🟥</span>
+                            </div>
+                          ) : (
+                            <div style={{ fontFamily:"Bebas Neue", fontSize:20, color:val>0?color:"#334155", lineHeight:1 }}>{display}</div>
+                          )}
+                          <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginTop:2 }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // 2026 FIFA World Cup Groups
+    const WC_GROUPS = {
+      A: ["Mexico", "South Africa", "South Korea", "Czechia"],
+      B: ["Canada", "Bosnia-Herzegovina", "Qatar", "Switzerland"],
+      C: ["Brazil", "Morocco", "Haiti", "Scotland"],
+      D: ["USA", "Paraguay", "Australia", "Turkey"],
+      E: ["Germany", "Curaçao", "Ivory Coast", "Ecuador"],
+      F: ["Netherlands", "Japan", "Sweden", "Tunisia"],
+      G: ["Belgium", "Egypt", "Iran", "New Zealand"],
+      H: ["Spain", "Cape Verde", "Saudi Arabia", "Uruguay"],
+      I: ["France", "Senegal", "Iraq", "Norway"],
+      J: ["Argentina", "Algeria", "Austria", "Jordan"],
+      K: ["Portugal", "DR Congo", "Uzbekistan", "Colombia"],
+      L: ["England", "Croatia", "Ghana", "Panama"],
+    };
+
+    const GROUP_MATCHES = [];
+    let matchId = 1;
+    Object.entries(WC_GROUPS).forEach(([group, teams]) => {
+      for (let i = 0; i < teams.length; i++) {
+        for (let j = i+1; j < teams.length; j++) {
+          GROUP_MATCHES.push({ id:`G${matchId++}`, group, home:teams[i], away:teams[j], stage:"group" });
+        }
+      }
+    });
+
+    // Official 2026 FIFA World Cup Round of 32 matchups from Wikipedia/FIFA
+    const R32_STRUCTURE = [
+      { id:"R32_1",  stage:"R32", home:"RU-A",  away:"RU-B",       label:"M73: 2nd A vs 2nd B", date:"Sun Jun 28", venue:"Los Angeles", time:"2:00 PM CT" },
+      { id:"R32_2",  stage:"R32", home:"W-E",   away:"3rd-ABCDF",  label:"M74: 1st E vs 3rd(A/B/C/D/F)", date:"Mon Jun 29", venue:"Boston", time:"3:30 PM CT" },
+      { id:"R32_3",  stage:"R32", home:"W-F",   away:"RU-C",       label:"M75: 1st F vs 2nd C", date:"Mon Jun 29", venue:"Monterrey", time:"8:00 PM CT" },
+      { id:"R32_4",  stage:"R32", home:"W-C",   away:"RU-F",       label:"M76: 1st C vs 2nd F", date:"Mon Jun 29", venue:"Houston", time:"12:00 PM CT" },
+      { id:"R32_5",  stage:"R32", home:"W-I",   away:"3rd-CDFGH",  label:"M77: 1st I vs 3rd(C/D/F/G/H)", date:"Tue Jun 30", venue:"New York/NJ", time:"9:00 PM CT" },
+      { id:"R32_6",  stage:"R32", home:"RU-E",  away:"RU-I",       label:"M78: 2nd E vs 2nd I", date:"Tue Jun 30", venue:"Dallas", time:"5:00 PM CT" },
+      { id:"R32_7",  stage:"R32", home:"W-A",   away:"3rd-CEFHI",  label:"M79: 1st A vs 3rd(C/E/F/H/I)", date:"Tue Jun 30", venue:"Mexico City", time:"8:00 PM CT" },
+      { id:"R32_8",  stage:"R32", home:"W-L",   away:"3rd-EHIJK",  label:"M80: 1st L vs 3rd(E/H/I/J/K)", date:"Wed Jul 1", venue:"Atlanta", time:"4:00 PM CT" },
+      { id:"R32_9",  stage:"R32", home:"W-D",   away:"3rd-BEFIJ",  label:"M81: 1st D vs 3rd(B/E/F/I/J)", date:"Wed Jul 1", venue:"San Francisco", time:"7:00 PM CT" },
+      { id:"R32_10", stage:"R32", home:"W-G",   away:"3rd-AEHIJ",  label:"M82: 1st G vs 3rd(A/E/H/I/J)", date:"Wed Jul 1", venue:"Seattle", time:"8:00 PM CT" },
+      { id:"R32_11", stage:"R32", home:"RU-K",  away:"RU-L",       label:"M83: 2nd K vs 2nd L", date:"Thu Jul 2", venue:"Toronto", time:"10:00 PM CT" },
+      { id:"R32_12", stage:"R32", home:"W-H",   away:"RU-J",       label:"M84: 1st H vs 2nd J", date:"Thu Jul 2", venue:"Los Angeles", time:"7:00 PM CT" },
+      { id:"R32_13", stage:"R32", home:"W-B",   away:"3rd-EFGIJ",  label:"M85: 1st B vs 3rd(E/F/G/I/J)", date:"Thu Jul 2", venue:"Vancouver", time:"10:00 PM CT" },
+      { id:"R32_14", stage:"R32", home:"W-J",   away:"RU-H",       label:"M86: 1st J vs 2nd H", date:"Fri Jul 3", venue:"Miami", time:"5:00 PM CT" },
+      { id:"R32_15", stage:"R32", home:"W-K",   away:"3rd-DEIJL",  label:"M87: 1st K vs 3rd(D/E/I/J/L)", date:"Fri Jul 3", venue:"Kansas City", time:"8:30 PM CT" },
+      { id:"R32_16", stage:"R32", home:"RU-D",  away:"RU-G",       label:"M88: 2nd D vs 2nd G", date:"Fri Jul 3", venue:"Dallas", time:"1:00 PM CT" },
+    ];
+
+    const KNOCKOUT_MATCHES = [
+      ...R32_STRUCTURE,
+      // Round of 16 - fed by R32 winners
+      { id:"R16_1", stage:"R16", label:"M89", feedHome:"R32_2",  feedAway:"R32_5",  date:"Sat Jul 4", venue:"Philadelphia", time:"4:00 PM CT" },
+      { id:"R16_2", stage:"R16", label:"M90", feedHome:"R32_1",  feedAway:"R32_3",  date:"Sat Jul 4", venue:"Houston", time:"12:00 PM CT" },
+      { id:"R16_3", stage:"R16", label:"M91", feedHome:"R32_4",  feedAway:"R32_6",  date:"Sun Jul 5", venue:"New York/NJ", time:"3:00 PM CT" },
+      { id:"R16_4", stage:"R16", label:"M92", feedHome:"R32_7",  feedAway:"R32_8",  date:"Sun Jul 5", venue:"Mexico City", time:"7:00 PM CT" },
+      { id:"R16_5", stage:"R16", label:"M93", feedHome:"R32_11", feedAway:"R32_12", date:"Mon Jul 6", venue:"Dallas", time:"2:00 PM CT" },
+      { id:"R16_6", stage:"R16", label:"M94", feedHome:"R32_9",  feedAway:"R32_10", date:"Mon Jul 6", venue:"Seattle", time:"7:00 PM CT" },
+      { id:"R16_7", stage:"R16", label:"M95", feedHome:"R32_14", feedAway:"R32_16", date:"Tue Jul 7", venue:"Atlanta", time:"11:00 AM CT" },
+      { id:"R16_8", stage:"R16", label:"M96", feedHome:"R32_13", feedAway:"R32_15", date:"Tue Jul 7", venue:"Vancouver", time:"3:00 PM CT" },
+      // Quarter Finals
+      { id:"QF_1", stage:"QF", label:"M97 · QF1", feedHome:"R16_1", feedAway:"R16_2", date:"Thu Jul 9", venue:"Boston", time:"3:00 PM CT" },
+      { id:"QF_2", stage:"QF", label:"M98 · QF2", feedHome:"R16_5", feedAway:"R16_6", date:"Fri Jul 10", venue:"Los Angeles", time:"6:00 PM CT" },
+      { id:"QF_3", stage:"QF", label:"M99 · QF3", feedHome:"R16_3", feedAway:"R16_4", date:"Sat Jul 11", venue:"Miami", time:"4:00 PM CT" },
+      { id:"QF_4", stage:"QF", label:"M100 · QF4", feedHome:"R16_7", feedAway:"R16_8", date:"Sat Jul 11", venue:"Kansas City", time:"8:00 PM CT" },
+      // Semi Finals
+      { id:"SF_1", stage:"SF", label:"M101 · SF1", feedHome:"QF_1", feedAway:"QF_2", date:"Tue Jul 14", venue:"Dallas", time:"2:00 PM CT" },
+      { id:"SF_2", stage:"SF", label:"M102 · SF2", feedHome:"QF_3", feedAway:"QF_4", date:"Wed Jul 15", venue:"Atlanta", time:"2:00 PM CT" },
+      // Final
+      { id:"F_1", stage:"F", label:"🏆 FINAL", feedHome:"SF_1", feedAway:"SF_2", date:"Sun Jul 19", venue:"New York/NJ", time:"2:00 PM CT" },
+    ];
+
+    // Calculate group standings from match results
+    function calcGroupStandings(group, matchResults) {
+      const teams = WC_GROUPS[group];
+      const stats = {};
+      teams.forEach(t => { stats[t] = { pts:0, gf:0, ga:0, gd:0, w:0, d:0, l:0 }; });
+
+      GROUP_MATCHES.filter(m => m.group === group).forEach(m => {
+        const r = matchResults[m.id];
+        if (!r || r.home_score == null) return;
+        const hs = r.home_score, as_ = r.away_score;
+        stats[m.home].gf += hs; stats[m.home].ga += as_; stats[m.home].gd += hs-as_;
+        stats[m.away].gf += as_; stats[m.away].ga += hs; stats[m.away].gd += as_-hs;
+        if (hs > as_) { stats[m.home].pts+=3; stats[m.home].w++; stats[m.away].l++; }
+        else if (hs === as_) { stats[m.home].pts++; stats[m.away].pts++; stats[m.home].d++; stats[m.away].d++; }
+        else { stats[m.away].pts+=3; stats[m.away].w++; stats[m.home].l++; }
+      });
+
+      return Object.entries(stats)
+        .sort((a,b) => b[1].pts-a[1].pts || b[1].gd-a[1].gd || b[1].gf-a[1].gf)
+        .map(([name, s]) => ({ name, ...s }));
+    }
+
+    // Resolve a slot like "W-A", "RU-B", "3rd-ABCDE" to a team name.
+    // For 3rd place slots, we must allocate the 8 best 3rd-place teams across all
+    // 8 third-place slots WITHOUT duplicates, respecting each slot's allowed groups.
+const ANNEX_C = {"ABCDEFGH":"HGBCAFDE","ABCDEFGI":"CGBDAFEI","ABCDEFGJ":"CGBDAFEJ","ABCDEFGK":"CGBDAFEK","ABCDEFGL":"CGBDAFLE","ABCDEFHI":"HEBCAFDI","ABCDEFHJ":"HJBCAFDE","ABCDEFHK":"HEBCAFDK","ABCDEFHL":"HFBCADLE","ABCDEFIJ":"CJBDAFEI","ABCDEFIK":"CEBDAFIK","ABCDEFIL":"CEBDAFLI","ABCDEFJK":"CJBDAFEK","ABCDEFJL":"CJBDAFLE","ABCDEFKL":"CEBDAFLK","ABCDEGHI":"HGBCADEI","ABCDEGHJ":"HGBCADEJ","ABCDEGHK":"HGBCADEK","ABCDEGHL":"HGBCADLE","ABCDEGIJ":"EGBCADIJ","ABCDEGIK":"EGBCADIK","ABCDEGIL":"EGBCADLI","ABCDEGJK":"EGBCADJK","ABCDEGJL":"EGBCADLJ","ABCDEGKL":"EGBCADLK","ABCDEHIJ":"HJBCADEI","ABCDEHIK":"HEBCADIK","ABCDEHIL":"HEBCADLI","ABCDEHJK":"HJBCADEK","ABCDEHJL":"HJBCADLE","ABCDEHKL":"HEBCADLK","ABCDEIJK":"EJBCADIK","ABCDEIJL":"EJBCADLI","ABCDEIKL":"EIBCADLK","ABCDEJKL":"EJBCADLK","ABCDFGHI":"HGBCAFDI","ABCDFGHJ":"HGBCAFDJ","ABCDFGHK":"HGBCAFDK","ABCDFGHL":"CGBDAFLH","ABCDFGIJ":"CGBDAFIJ","ABCDFGIK":"CGBDAFIK","ABCDFGIL":"CGBDAFLI","ABCDFGJK":"CGBDAFJK","ABCDFGJL":"CGBDAFLJ","ABCDFGKL":"CGBDAFLK","ABCDFHIJ":"HJBCAFDI","ABCDFHIK":"HFBCADIK","ABCDFHIL":"HFBCADLI","ABCDFHJK":"HJBCAFDK","ABCDFHJL":"CJBDAFLH","ABCDFHKL":"HFBCADLK","ABCDFIJK":"CJBDAFIK","ABCDFIJL":"CJBDAFLI","ABCDFIKL":"CIBDAFLK","ABCDFJKL":"CJBDAFLK","ABCDGHIJ":"HGBCADIJ","ABCDGHIK":"HGBCADIK","ABCDGHIL":"HGBCADLI","ABCDGHJK":"HGBCADJK","ABCDGHJL":"HGBCADLJ","ABCDGHKL":"HGBCADLK","ABCDGIJK":"CJBDAGIK","ABCDGIJL":"CJBDAGLI","ABCDGIKL":"IGBCADLK","ABCDGJKL":"CJBDAGLK","ABCDHIJK":"HJBCADIK","ABCDHIJL":"HJBCADLI","ABCDHIKL":"HIBCADLK","ABCDHJKL":"HJBCADLK","ABCDIJKL":"IJBCADLK","ABCEFGHI":"HGBCAFEI","ABCEFGHJ":"HGBCAFEJ","ABCEFGHK":"HGBCAFEK","ABCEFGHL":"HGBCAFLE","ABCEFGIJ":"EGBCAFIJ","ABCEFGIK":"EGBCAFIK","ABCEFGIL":"EGBCAFLI","ABCEFGJK":"EGBCAFJK","ABCEFGJL":"EGBCAFLJ","ABCEFGKL":"EGBCAFLK","ABCEFHIJ":"HJBCAFEI","ABCEFHIK":"HEBCAFIK","ABCEFHIL":"HEBCAFLI","ABCEFHJK":"HJBCAFEK","ABCEFHJL":"HJBCAFLE","ABCEFHKL":"HEBCAFLK","ABCEFIJK":"EJBCAFIK","ABCEFIJL":"EJBCAFLI","ABCEFIKL":"EIBCAFLK","ABCEFJKL":"EJBCAFLK","ABCEGHIJ":"HJBCAGEI","ABCEGHIK":"EGBCAHIK","ABCEGHIL":"EGBCAHLI","ABCEGHJK":"HJBCAGEK","ABCEGHJL":"HJBCAGLE","ABCEGHKL":"EGBCAHLK","ABCEGIJK":"EJBCAGIK","ABCEGIJL":"EJBCAGLI","ABCEGIKL":"EGBAICLK","ABCEGJKL":"EJBCAGLK","ABCEHIJK":"EJBCAHIK","ABCEHIJL":"EJBCAHLI","ABCEHIKL":"EIBCAHLK","ABCEHJKL":"EJBCAHLK","ABCEIJKL":"EJBAICLK","ABCFGHIJ":"HGBCAFIJ","ABCFGHIK":"HGBCAFIK","ABCFGHIL":"HGBCAFLI","ABCFGHJK":"HGBCAFJK","ABCFGHJL":"HGBCAFLJ","ABCFGHKL":"HGBCAFLK","ABCFGIJK":"CJBFAGIK","ABCFGIJL":"CJBFAGLI","ABCFGIKL":"IGBCAFLK","ABCFGJKL":"CJBFAGLK","ABCFHIJK":"HJBCAFIK","ABCFHIJL":"HJBCAFLI","ABCFHIKL":"HIBCAFLK","ABCFHJKL":"HJBCAFLK","ABCFIJKL":"IJBCAFLK","ABCGHIJK":"HJBCAGIK","ABCGHIJL":"HJBCAGLI","ABCGHIKL":"IGBCAHLK","ABCGHJKL":"HJBCAGLK","ABCGIJKL":"IJBCAGLK","ABCHIJKL":"IJBCAHLK","ABDEFGHI":"HGBDAFEI","ABDEFGHJ":"HGBDAFEJ","ABDEFGHK":"HGBDAFEK","ABDEFGHL":"HGBDAFLE","ABDEFGIJ":"EGBDAFIJ","ABDEFGIK":"EGBDAFIK","ABDEFGIL":"EGBDAFLI","ABDEFGJK":"EGBDAFJK","ABDEFGJL":"EGBDAFLJ","ABDEFGKL":"EGBDAFLK","ABDEFHIJ":"HJBDAFEI","ABDEFHIK":"HEBDAFIK","ABDEFHIL":"HEBDAFLI","ABDEFHJK":"HJBDAFEK","ABDEFHJL":"HJBDAFLE","ABDEFHKL":"HEBDAFLK","ABDEFIJK":"EJBDAFIK","ABDEFIJL":"EJBDAFLI","ABDEFIKL":"EIBDAFLK","ABDEFJKL":"EJBDAFLK","ABDEGHIJ":"HJBDAGEI","ABDEGHIK":"EGBDAHIK","ABDEGHIL":"EGBDAHLI","ABDEGHJK":"HJBDAGEK","ABDEGHJL":"HJBDAGLE","ABDEGHKL":"EGBDAHLK","ABDEGIJK":"EJBDAGIK","ABDEGIJL":"EJBDAGLI","ABDEGIKL":"EGBAIDLK","ABDEGJKL":"EJBDAGLK","ABDEHIJK":"EJBDAHIK","ABDEHIJL":"EJBDAHLI","ABDEHIKL":"EIBDAHLK","ABDEHJKL":"EJBDAHLK","ABDEIJKL":"EJBAIDLK","ABDFGHIJ":"HGBDAFIJ","ABDFGHIK":"HGBDAFIK","ABDFGHIL":"HGBDAFLI","ABDFGHJK":"HGBDAFJK","ABDFGHJL":"HGBDAFLJ","ABDFGHKL":"HGBDAFLK","ABDFGIJK":"FJBDAGIK","ABDFGIJL":"FJBDAGLI","ABDFGIKL":"IGBDAFLK","ABDFGJKL":"FJBDAGLK","ABDFHIJK":"HJBDAFIK","ABDFHIJL":"HJBDAFLI","ABDFHIKL":"HIBDAFLK","ABDFHJKL":"HJBDAFLK","ABDFIJKL":"IJBDAFLK","ABDGHIJK":"HJBDAGIK","ABDGHIJL":"HJBDAGLI","ABDGHIKL":"IGBDAHLK","ABDGHJKL":"HJBDAGLK","ABDGIJKL":"IJBDAGLK","ABDHIJKL":"IJBDAHLK","ABEFGHIJ":"HJBFAGEI","ABEFGHIK":"EGBFAHIK","ABEFGHIL":"EGBFAHLI","ABEFGHJK":"HJBFAGEK","ABEFGHJL":"HJBFAGLE","ABEFGHKL":"EGBFAHLK","ABEFGIJK":"EJBFAGIK","ABEFGIJL":"EJBFAGLI","ABEFGIKL":"EGBAIFLK","ABEFGJKL":"EJBFAGLK","ABEFHIJK":"EJBFAHIK","ABEFHIJL":"EJBFAHLI","ABEFHIKL":"EIBFAHLK","ABEFHJKL":"EJBFAHLK","ABEFIJKL":"EJBAIFLK","ABEGHIJK":"EJBAHGIK","ABEGHIJL":"EJBAHGLI","ABEGHIKL":"EGBAIHLK","ABEGHJKL":"EJBAHGLK","ABEGIJKL":"EJBAIGLK","ABEHIJKL":"EJBAIHLK","ABFGHIJK":"HJBFAGIK","ABFGHIJL":"HJBFAGLI","ABFGHIKL":"HGBAIFLK","ABFGHJKL":"HJBFAGLK","ABFGIJKL":"IJBFAGLK","ABFHIJKL":"HJBAIFLK","ABGHIJKL":"HJBAIGLK","ACDEFGHI":"HGECAFDI","ACDEFGHJ":"HGJCAFDE","ACDEFGHK":"HGECAFDK","ACDEFGHL":"HGFCADLE","ACDEFGIJ":"CGJDAFEI","ACDEFGIK":"CGEDAFIK","ACDEFGIL":"CGEDAFLI","ACDEFGJK":"CGJDAFEK","ACDEFGJL":"CGJDAFLE","ACDEFGKL":"CGEDAFLK","ACDEFHIJ":"HJECAFDI","ACDEFHIK":"HEFCADIK","ACDEFHIL":"HEFCADLI","ACDEFHJK":"HJECAFDK","ACDEFHJL":"HJFCADLE","ACDEFHKL":"HEFCADLK","ACDEFIJK":"CJEDAFIK","ACDEFIJL":"CJEDAFLI","ACDEFIKL":"CEIDAFLK","ACDEFJKL":"CJEDAFLK","ACDEGHIJ":"HGJCADEI","ACDEGHIK":"HGECADIK","ACDEGHIL":"HGECADLI","ACDEGHJK":"HGJCADEK","ACDEGHJL":"HGJCADLE","ACDEGHKL":"HGECADLK","ACDEGIJK":"EGJCADIK","ACDEGIJL":"EGJCADLI","ACDEGIKL":"EGICADLK","ACDEGJKL":"EGJCADLK","ACDEHIJK":"HJECADIK","ACDEHIJL":"HJECADLI","ACDEHIKL":"HEICADLK","ACDEHJKL":"HJECADLK","ACDEIJKL":"EJICADLK","ACDFGHIJ":"HGJCAFDI","ACDFGHIK":"HGFCADIK","ACDFGHIL":"HGFCADLI","ACDFGHJK":"HGJCAFDK","ACDFGHJL":"CGJDAFLH","ACDFGHKL":"HGFCADLK","ACDFGIJK":"CGJDAFIK","ACDFGIJL":"CGJDAFLI","ACDFGIKL":"CGIDAFLK","ACDFGJKL":"CGJDAFLK","ACDFHIJK":"HJFCADIK","ACDFHIJL":"HJFCADLI","ACDFHIKL":"HFICADLK","ACDFHJKL":"HJFCADLK","ACDFIJKL":"CJIDAFLK","ACDGHIJK":"HGJCADIK","ACDGHIJL":"HGJCADLI","ACDGHIKL":"HGICADLK","ACDGHJKL":"HGJCADLK","ACDGIJKL":"IGJCADLK","ACDHIJKL":"HJICADLK","ACEFGHIJ":"HGJCAFEI","ACEFGHIK":"HGECAFIK","ACEFGHIL":"HGECAFLI","ACEFGHJK":"HGJCAFEK","ACEFGHJL":"HGJCAFLE","ACEFGHKL":"HGECAFLK","ACEFGIJK":"EGJCAFIK","ACEFGIJL":"EGJCAFLI","ACEFGIKL":"EGICAFLK","ACEFGJKL":"EGJCAFLK","ACEFHIJK":"HJECAFIK","ACEFHIJL":"HJECAFLI","ACEFHIKL":"HEICAFLK","ACEFHJKL":"HJECAFLK","ACEFIJKL":"EJICAFLK","ACEGHIJK":"EGJCAHIK","ACEGHIJL":"EGJCAHLI","ACEGHIKL":"EGICAHLK","ACEGHJKL":"EGJCAHLK","ACEGIJKL":"EJICAGLK","ACEHIJKL":"EJICAHLK","ACFGHIJK":"HGJCAFIK","ACFGHIJL":"HGJCAFLI","ACFGHIKL":"HGICAFLK","ACFGHJKL":"HGJCAFLK","ACFGIJKL":"IGJCAFLK","ACFHIJKL":"HJICAFLK","ACGHIJKL":"HJICAGLK","ADEFGHIJ":"HGJDAFEI","ADEFGHIK":"HGEDAFIK","ADEFGHIL":"HGEDAFLI","ADEFGHJK":"HGJDAFEK","ADEFGHJL":"HGJDAFLE","ADEFGHKL":"HGEDAFLK","ADEFGIJK":"EGJDAFIK","ADEFGIJL":"EGJDAFLI","ADEFGIKL":"EGIDAFLK","ADEFGJKL":"EGJDAFLK","ADEFHIJK":"HJEDAFIK","ADEFHIJL":"HJEDAFLI","ADEFHIKL":"HEIDAFLK","ADEFHJKL":"HJEDAFLK","ADEFIJKL":"EJIDAFLK","ADEGHIJK":"EGJDAHIK","ADEGHIJL":"EGJDAHLI","ADEGHIKL":"EGIDAHLK","ADEGHJKL":"EGJDAHLK","ADEGIJKL":"EJIDAGLK","ADEHIJKL":"EJIDAHLK","ADFGHIJK":"HGJDAFIK","ADFGHIJL":"HGJDAFLI","ADFGHIKL":"HGIDAFLK","ADFGHJKL":"HGJDAFLK","ADFGIJKL":"IGJDAFLK","ADFHIJKL":"HJIDAFLK","ADGHIJKL":"HJIDAGLK","AEFGHIJK":"EGJFAHIK","AEFGHIJL":"EGJFAHLI","AEFGHIKL":"EGIFAHLK","AEFGHJKL":"EGJFAHLK","AEFGIJKL":"EJIFAGLK","AEFHIJKL":"EJIFAHLK","AEGHIJKL":"EJIAHGLK","AFGHIJKL":"HJIFAGLK","BCDEFGHI":"CGBDHFEI","BCDEFGHJ":"HGBCJFDE","BCDEFGHK":"CGBDHFEK","BCDEFGHL":"CGBDHFLE","BCDEFGIJ":"CGBDJFEI","BCDEFGIK":"CGBDEFIK","BCDEFGIL":"CGBDEFLI","BCDEFGJK":"CGBDJFEK","BCDEFGJL":"CGBDJFLE","BCDEFGKL":"CGBDEFLK","BCDEFHIJ":"CJBDHFEI","BCDEFHIK":"CEBDHFIK","BCDEFHIL":"CEBDHFLI","BCDEFHJK":"CJBDHFEK","BCDEFHJL":"CJBDHFLE","BCDEFHKL":"CEBDHFLK","BCDEFIJK":"CJBDEFIK","BCDEFIJL":"CJBDEFLI","BCDEFIKL":"CEBDIFLK","BCDEFJKL":"CJBDEFLK","BCDEGHIJ":"HGBCJDEI","BCDEGHIK":"EGBCHDIK","BCDEGHIL":"EGBCHDLI","BCDEGHJK":"HGBCJDEK","BCDEGHJL":"HGBCJDLE","BCDEGHKL":"EGBCHDLK","BCDEGIJK":"EGBCJDIK","BCDEGIJL":"EGBCJDLI","BCDEGIKL":"EGBCIDLK","BCDEGJKL":"EGBCJDLK","BCDEHIJK":"EJBCHDIK","BCDEHIJL":"EJBCHDLI","BCDEHIKL":"EIBCHDLK","BCDEHJKL":"EJBCHDLK","BCDEIJKL":"EJBCIDLK","BCDFGHIJ":"HGBCJFDI","BCDFGHIK":"CGBDHFIK","BCDFGHIL":"CGBDHFLI","BCDFGHJK":"HGBCJFDK","BCDFGHJL":"CGBDHFLJ","BCDFGHKL":"CGBDHFLK","BCDFGIJK":"CGBDJFIK","BCDFGIJL":"CGBDJFLI","BCDFGIKL":"CGBDIFLK","BCDFGJKL":"CGBDJFLK","BCDFHIJK":"CJBDHFIK","BCDFHIJL":"CJBDHFLI","BCDFHIKL":"CIBDHFLK","BCDFHJKL":"CJBDHFLK","BCDFIJKL":"CJBDIFLK","BCDGHIJK":"HGBCJDIK","BCDGHIJL":"HGBCJDLI","BCDGHIKL":"HGBCIDLK","BCDGHJKL":"HGBCJDLK","BCDGIJKL":"IGBCJDLK","BCDHIJKL":"HJBCIDLK","BCEFGHIJ":"HGBCJFEI","BCEFGHIK":"EGBCHFIK","BCEFGHIL":"EGBCHFLI","BCEFGHJK":"HGBCJFEK","BCEFGHJL":"HGBCJFLE","BCEFGHKL":"EGBCHFLK","BCEFGIJK":"EGBCJFIK","BCEFGIJL":"EGBCJFLI","BCEFGIKL":"EGBCIFLK","BCEFGJKL":"EGBCJFLK","BCEFHIJK":"EJBCHFIK","BCEFHIJL":"EJBCHFLI","BCEFHIKL":"EIBCHFLK","BCEFHJKL":"EJBCHFLK","BCEFIJKL":"EJBCIFLK","BCEGHIJK":"EJBCHGIK","BCEGHIJL":"EJBCHGLI","BCEGHIKL":"EGBCIHLK","BCEGHJKL":"EJBCHGLK","BCEGIJKL":"EJBCIGLK","BCEHIJKL":"EJBCIHLK","BCFGHIJK":"HGBCJFIK","BCFGHIJL":"HGBCJFLI","BCFGHIKL":"HGBCIFLK","BCFGHJKL":"HGBCJFLK","BCFGIJKL":"IGBCJFLK","BCFHIJKL":"HJBCIFLK","BCGHIJKL":"HJBCIGLK","BDEFGHIJ":"HGBDJFEI","BDEFGHIK":"EGBDHFIK","BDEFGHIL":"EGBDHFLI","BDEFGHJK":"HGBDJFEK","BDEFGHJL":"HGBDJFLE","BDEFGHKL":"EGBDHFLK","BDEFGIJK":"EGBDJFIK","BDEFGIJL":"EGBDJFLI","BDEFGIKL":"EGBDIFLK","BDEFGJKL":"EGBDJFLK","BDEFHIJK":"EJBDHFIK","BDEFHIJL":"EJBDHFLI","BDEFHIKL":"EIBDHFLK","BDEFHJKL":"EJBDHFLK","BDEFIJKL":"EJBDIFLK","BDEGHIJK":"EJBDHGIK","BDEGHIJL":"EJBDHGLI","BDEGHIKL":"EGBDIHLK","BDEGHJKL":"EJBDHGLK","BDEGIJKL":"EJBDIGLK","BDEHIJKL":"EJBDIHLK","BDFGHIJK":"HGBDJFIK","BDFGHIJL":"HGBDJFLI","BDFGHIKL":"HGBDIFLK","BDFGHJKL":"HGBDJFLK","BDFGIJKL":"IGBDJFLK","BDFHIJKL":"HJBDIFLK","BDGHIJKL":"HJBDIGLK","BEFGHIJK":"EJBFHGIK","BEFGHIJL":"EJBFHGLI","BEFGHIKL":"EGBFIHLK","BEFGHJKL":"EJBFHGLK","BEFGIJKL":"EJBFIGLK","BEFHIJKL":"EJBFIHLK","BEGHIJKL":"EJIBHGLK","BFGHIJKL":"HJBFIGLK","CDEFGHIJ":"CGJDHFEI","CDEFGHIK":"CGEDHFIK","CDEFGHIL":"CGEDHFLI","CDEFGHJK":"CGJDHFEK","CDEFGHJL":"CGJDHFLE","CDEFGHKL":"CGEDHFLK","CDEFGIJK":"CGEDJFIK","CDEFGIJL":"CGEDJFLI","CDEFGIKL":"CGEDIFLK","CDEFGJKL":"CGEDJFLK","CDEFHIJK":"CJEDHFIK","CDEFHIJL":"CJEDHFLI","CDEFHIKL":"CEIDHFLK","CDEFHJKL":"CJEDHFLK","CDEFIJKL":"CJEDIFLK","CDEGHIJK":"EGJCHDIK","CDEGHIJL":"EGJCHDLI","CDEGHIKL":"EGICHDLK","CDEGHJKL":"EGJCHDLK","CDEGIJKL":"EGICJDLK","CDEHIJKL":"EJICHDLK","CDFGHIJK":"CGJDHFIK","CDFGHIJL":"CGJDHFLI","CDFGHIKL":"CGIDHFLK","CDFGHJKL":"CGJDHFLK","CDFGIJKL":"CGIDJFLK","CDFHIJKL":"CJIDHFLK","CDGHIJKL":"HGICJDLK","CEFGHIJK":"EGJCHFIK","CEFGHIJL":"EGJCHFLI","CEFGHIKL":"EGICHFLK","CEFGHJKL":"EGJCHFLK","CEFGIJKL":"EGICJFLK","CEFHIJKL":"EJICHFLK","CEGHIJKL":"EJICHGLK","CFGHIJKL":"HGICJFLK","DEFGHIJK":"EGJDHFIK","DEFGHIJL":"EGJDHFLI","DEFGHIKL":"EGIDHFLK","DEFGHJKL":"EGJDHFLK","DEFGIJKL":"EGIDJFLK","DEFHIJKL":"EJIDHFLK","DEGHIJKL":"EJIDHGLK","DFGHIJKL":"HGIDJFLK","EFGHIJKL":"EJIFHGLK"};
+    // Column order of ANNEX_C values maps to these winner slots:
+    const ANNEX_C_SLOTS = ["R32_7","R32_13","R32_9","R32_2","R32_10","R32_5","R32_15","R32_8"];
+
+    function getThirdPlaceAllocation(matchResults, allowPartial) {
+      // 1. Compute each group's current 3rd place team.
+      // For predicted brackets we require all 6 games (a person predicts the whole group).
+      // For the LIVE actual bracket (allowPartial), we project from current standings
+      // as long as the group has at least started, so the bracket fills in progressively.
+      const thirds = [];
+      Object.keys(WC_GROUPS).forEach(g => {
+        const groupGameIds = GROUP_MATCHES.filter(m => m.group === g).map(m => m.id);
+        const playedCount = groupGameIds.filter(id => matchResults[id]?.home_score != null).length;
+        const ready = allowPartial ? playedCount > 0 : playedCount === groupGameIds.length;
+        if (!ready) return;
+        const standings = calcGroupStandings(g, matchResults);
+        if (standings[2]) thirds.push({ ...standings[2], group: g });
+      });
+
+      // 2. Rank all eligible 3rd place teams; take best 8 (FIFA: pts, GD, GF)
+      const ranked = [...thirds].sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf);
+      const qualified = ranked.slice(0, 8);
+      const qualifiedGroups = new Set(qualified.map(t => t.group));
+
+      const result = {};
+      const nameFor = (g) => {
+        const team = thirds.find(t => t.group === g);
+        return team?.name || "3rd Place";
+      };
+
+      // 3. PRIMARY: use FIFA's official Annex C table. The key is the 8 qualifying
+      // groups sorted alphabetically; the value lists which group's 3rd-place team
+      // goes into each winner slot, in ANNEX_C_SLOTS order. This matches the official
+      // bracket exactly (e.g. with B,D,E,F,H,I,K,L qualifying, USA/1D plays Bosnia/3B).
+      if (qualified.length === 8) {
+        const key = [...qualifiedGroups].sort().join("");
+        const row = ANNEX_C[key];
+        if (row) {
+          ANNEX_C_SLOTS.forEach((slotId, i) => {
+            result[slotId] = nameFor(row[i]);
+          });
+          return result;
+        }
+      }
+
+      // 4. FALLBACK (partial brackets, or any row not in the embedded table):
+      // assign qualifying groups to slots respecting each slot's allowed groups,
+      // using backtracking to guarantee a complete valid assignment.
+      const slots = [
+        { slotId:"R32_2", allowed:["A","B","C","D","F"] }, // M74 1E
+        { slotId:"R32_5", allowed:["C","D","F","G","H"] }, // M77 1I
+        { slotId:"R32_7", allowed:["C","E","F","H","I"] }, // M79 1A
+        { slotId:"R32_8", allowed:["E","H","I","J","K"] }, // M80 1L
+        { slotId:"R32_9", allowed:["B","E","F","I","J"] }, // M81 1D
+        { slotId:"R32_10", allowed:["A","E","H","I","J"] }, // M82 1G
+        { slotId:"R32_13", allowed:["E","F","G","I","J"] }, // M85 1B
+        { slotId:"R32_15", allowed:["D","E","I","J","L"] }, // M87 1K
+      ];
+      const slotOptions = slots.map(s => ({
+        slotId: s.slotId,
+        options: s.allowed.filter(g => qualifiedGroups.has(g))
+      }));
+      let solution = null;
+      const solve = (idx, used, current) => {
+        if (solution) return;
+        if (idx === slotOptions.length) { solution = { ...current }; return; }
+        const slot = slotOptions[idx];
+        for (const g of slot.options) {
+          if (used.has(g)) continue;
+          used.add(g);
+          current[slot.slotId] = g;
+          solve(idx + 1, used, current);
+          used.delete(g);
+          if (solution) return;
+        }
+      };
+      slotOptions.sort((a, b) => a.options.length - b.options.length);
+      solve(0, new Set(), {});
+      const assignment = solution || {};
+      slots.forEach(s => {
+        const group = assignment[s.slotId];
+        result[s.slotId] = group ? nameFor(group) : "3rd Place";
+      });
+      return result;
+    }
+
+    function resolveSlot(slot, matchResults, slotId, allowPartial) {
+      if (!slot.includes("-")) return slot;
+      if (slot.startsWith("W-")) {
+        const standings = calcGroupStandings(slot.replace("W-",""), matchResults);
+        return standings[0]?.name || `1st Group ${slot.replace("W-","")}`;
+      }
+      if (slot.startsWith("RU-")) {
+        const standings = calcGroupStandings(slot.replace("RU-",""), matchResults);
+        return standings[1]?.name || `2nd Group ${slot.replace("RU-","")}`;
+      }
+      if (slot.startsWith("3rd-")) {
+        // Full allocation to avoid duplicate teams across slots
+        const alloc = getThirdPlaceAllocation(matchResults, allowPartial);
+        return alloc[slotId] || "3rd Place";
+      }
+      return slot;
+    }
+
+    // First match kickoff: June 11, 2026, 2:00 PM Central Time (UTC-5 CDT)
+    const KICKOFF = new Date("2026-06-11T14:00:00-05:00");
+    // One-off override: put a person's name here (exactly as they entered it) to quietly
+    // let just that person fill in their KNOCKOUT picks after kickoff. Their group picks
+    // stay locked. Set back to "" when they're done. No visible UI — only affects them.
+    const EDIT_OVERRIDE_NAME = "A-A-RON";
+
+    function WorldCupApp({ isEditor, onBack }) {
+      const [wcView, setWcView] = useState("daily"); // daily | live | thirds | leaderboard | bracket | admin
+      const [participants, setParticipants] = useState([]);
+      const [predictions, setPredictions] = useState({});
+      const [results, setResults] = useState({});
+      const [myName, setMyName] = useState(() => localStorage.getItem("wc_name") || "");
+      const [myId, setMyId] = useState(() => localStorage.getItem("wc_id") || "");
+      const [nameInput, setNameInput] = useState("");
+      const [loading, setLoading] = useState(true);
+      const [activeGroup, setActiveGroup] = useState("A");
+      const [activeStage, setActiveStage] = useState("group");
+      const [lastSync, setLastSync] = useState(null);
+      const [syncing, setSyncing] = useState(false);
+      const [apiMatches, setApiMatches] = useState([]);
+      const [viewingId, setViewingId] = useState(null); // viewing someone else's bracket
+      const [now, setNow] = useState(new Date());
+      useEffect(() => {
+        const t = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(t);
+      }, []);
+      const kickoffPassed = now >= KICKOFF;
+
+      const loadAll = useCallback(async () => {
+        setLoading(true);
+        // Fetch all predictions in pages of 1000 to bypass Supabase's default row limit
+        let allPreds = [];
+        let from = 0;
+        const pageSize = 1000;
+        while (true) {
+          const { data, error } = await sb.from("wc_predictions").select("*").range(from, from + pageSize - 1);
+          if (error || !data || data.length === 0) break;
+          allPreds = allPreds.concat(data);
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+        const [pRes, resRes] = await Promise.all([
+          sb.from("wc_participants").select("*").order("created_at"),
+          sb.from("wc_results").select("*"),
+        ]);
+        setParticipants(pRes.data || []);
+        const predMap = {};
+        allPreds.forEach(p => {
+          if (!predMap[p.participant_id]) predMap[p.participant_id] = {};
+          predMap[p.participant_id][p.match_id] = p;
+        });
+        setPredictions(predMap);
+        const resMap = {};
+        (resRes.data || []).forEach(r => { resMap[r.match_id] = r; });
+        setResults(resMap);
+        setLoading(false);
+      }, []);
+
+      useEffect(() => { loadAll(); }, [loadAll]);
+
+      // Auto-fetch live scores every 5 minutes
+      const fetchLiveScores = useCallback(async () => {
+        setSyncing(true);
+        try {
+          const res = await fetch("/api/scores");
+          const data = await res.json();
+          if (!data.matches) { setSyncing(false); return; }
+          setApiMatches(data.matches);
+
+          const updates = [];
+          for (const match of data.matches) {
+            if (match.status !== "FINISHED" && match.status !== "IN_PLAY" && match.status !== "PAUSED") continue;
+            const homeGoals = match.score?.fullTime?.home ?? match.score?.currentScore?.home;
+            const awayGoals = match.score?.fullTime?.away ?? match.score?.currentScore?.away;
+            if (homeGoals == null || awayGoals == null) continue;
+
+            // Map API team names to our match IDs — BOTH teams must match the same fixture
+            const homeName = (match.homeTeam?.name || "").toLowerCase();
+            const awayName = (match.awayTeam?.name || "").toLowerCase();
+            const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z]/g,"");
+            // Canonical aliases: map every known API name variant to a single key.
+            // Covers all 48 teams; safe because it only ADDS matches, never removes.
+            const ALIASES = {
+              // Group A
+              "mexico":"mexico", "southafrica":"southafrica", "rsa":"southafrica",
+              "southkorea":"southkorea","korearepublic":"southkorea","republicofkorea":"southkorea","korea":"southkorea","kor":"southkorea",
+              "czechia":"czechia","czechrepublic":"czechia","cze":"czechia",
+              // Group B
+              "canada":"canada","can":"canada",
+              "bosniaherzegovina":"bosniaherzegovina","bosniaandherzegovina":"bosniaherzegovina","bih":"bosniaherzegovina",
+              "qatar":"qatar","qat":"qatar",
+              "switzerland":"switzerland","sui":"switzerland","s)":"switzerland",
+              // Group C
+              "brazil":"brazil","bra":"brazil",
+              "morocco":"morocco","mar":"morocco",
+              "haiti":"haiti","hai":"haiti",
+              "scotland":"scotland","sco":"scotland",
+              // Group D
+              "usa":"usa","unitedstates":"usa","unitedstatesofamerica":"usa","us":"usa","usmnt":"usa",
+              "paraguay":"paraguay","par":"paraguay",
+              "australia":"australia","aus":"australia",
+              "turkey":"turkey","turkiye":"turkey","tur":"turkey",
+              // Group E
+              "germany":"germany","ger":"germany",
+              "curacao":"curacao","cuw":"curacao",
+              "ivorycoast":"ivorycoast","cotedivoire":"ivorycoast","civ":"ivorycoast",
+              "ecuador":"ecuador","ecu":"ecuador",
+              // Group F
+              "netherlands":"netherlands","holland":"netherlands","ned":"netherlands",
+              "japan":"japan","jpn":"japan",
+              "sweden":"sweden","swe":"sweden",
+              "tunisia":"tunisia","tun":"tunisia",
+              // Group G
+              "belgium":"belgium","bel":"belgium",
+              "egypt":"egypt","egy":"egypt",
+              "iran":"iran","irislamicrepublicofiran":"iran","iranislamicrepublic":"iran","irn":"iran",
+              "newzealand":"newzealand","nzl":"newzealand",
+              // Group H
+              "spain":"spain","esp":"spain",
+              "capeverde":"capeverde","caboverde":"capeverde","capeverdeislands":"capeverde","cpv":"capeverde",
+              "saudiarabia":"saudiarabia","ksa":"saudiarabia",
+              "uruguay":"uruguay","uru":"uruguay",
+              // Group I
+              "france":"france","fra":"france",
+              "senegal":"senegal","sen":"senegal",
+              "iraq":"iraq","irq":"iraq",
+              "norway":"norway","nor":"norway",
+              // Group J
+              "argentina":"argentina","arg":"argentina",
+              "algeria":"algeria","alg":"algeria",
+              "austria":"austria","aut":"austria",
+              "jordan":"jordan","jor":"jordan",
+              // Group K
+              "portugal":"portugal","por":"portugal",
+              "drcongo":"drcongo","democraticrepublicofthecongo":"drcongo","congodr":"drcongo","cod":"drcongo",
+              "uzbekistan":"uzbekistan","uzb":"uzbekistan",
+              "colombia":"colombia","col":"colombia",
+              // Group L
+              "england":"england","eng":"england",
+              "croatia":"croatia","cro":"croatia",
+              "ghana":"ghana","gha":"ghana",
+              "panama":"panama","pan":"panama",
+            };
+            const canon = (s) => { const n = norm(s); return ALIASES[n] || n; };
+            const teamsMatch = (apiName, ourName) => {
+              const a = canon(apiName), o = canon(ourName);
+              return a === o;
+            };
+            // Try home-away orientation, then swapped (in case API lists teams in different order)
+            let foundMatch = GROUP_MATCHES.find(m =>
+              (teamsMatch(homeName, m.home) && teamsMatch(awayName, m.away))
+            );
+            let swapped = false;
+            if (!foundMatch) {
+              foundMatch = GROUP_MATCHES.find(m =>
+                (teamsMatch(homeName, m.away) && teamsMatch(awayName, m.home))
+              );
+              swapped = !!foundMatch;
+            }
+            if (!foundMatch) continue;
+            // Align scores to OUR home/away orientation
+            const ourHome = swapped ? awayGoals : homeGoals;
+            const ourAway = swapped ? homeGoals : awayGoals;
+            updates.push({ matchId: foundMatch.id, home: ourHome, away: ourAway });
+          }
+
+          // Save all updates to Supabase
+          for (const u of updates) {
+            const existing = results[u.matchId];
+            if (existing) {
+              await sb.from("wc_results").update({ home_score: u.home, away_score: u.away, updated_at: new Date().toISOString() }).eq("id", existing.id);
+            } else {
+              await sb.from("wc_results").insert({ match_id: u.matchId, home_score: u.home, away_score: u.away });
+            }
+          }
+
+          if (updates.length > 0) await loadAll();
+          setLastSync(new Date());
+        } catch(e) {
+          console.error("Score fetch failed:", e);
+        }
+        setSyncing(false);
+      }, [results, loadAll]);
+
+      useEffect(() => {
+        fetchLiveScores();
+        const interval = setInterval(fetchLiveScores, 5 * 60 * 1000);
+        return () => clearInterval(interval);
+      }, []);
+
+      useEffect(() => { loadAll(); }, [loadAll]);
+
+      const [myLocked, setMyLocked] = useState(() => localStorage.getItem("wc_locked") === "true");
+
+      const joinBracket = async () => {
+        const name = nameInput.trim();
+        if (!name) return;
+
+        // Check if this name already exists (case-insensitive)
+        const { data: existing } = await sb.from("wc_participants").select("*").ilike("name", name);
+        if (existing && existing.length > 0) {
+          const match = existing[0];
+          const resume = confirm(`"${match.name}" already has a bracket. Tap OK to resume and edit it, or Cancel to pick a different name.`);
+          if (resume) {
+            // Re-open for editing (unless the tournament has already started)
+            if (match.locked && !kickoffPassed) {
+              await sb.from("wc_participants").update({ locked: false }).eq("id", match.id);
+            }
+            setMyName(match.name);
+            setMyId(match.id);
+            localStorage.setItem("wc_name", match.name);
+            localStorage.setItem("wc_id", match.id);
+            localStorage.setItem("wc_locked", "false");
+            setMyLocked(false);
+            setNameInput("");
+            await loadAll();
+          }
+          return;
+        }
+
+        // New name — create entry
+        const { data, error } = await sb.from("wc_participants").insert({ name }).select().single();
+        if (!error && data) {
+          setMyName(data.name);
+          setMyId(data.id);
+          localStorage.setItem("wc_name", data.name);
+          localStorage.setItem("wc_id", data.id);
+          localStorage.setItem("wc_locked", "false");
+          setMyLocked(false);
+          setNameInput("");
+          await loadAll();
+        }
+      };
+
+      const effectiveLocked = myLocked || kickoffPassed;
+      // One-off knockout edit override: only the matching person, group picks stay locked.
+      // Normalize both names to letters-only so dashes/spaces/case never block the match.
+      const normNm = (s) => (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+      const selfKoEdit = !!myId && !!EDIT_OVERRIDE_NAME &&
+        normNm(myName) === normNm(EDIT_OVERRIDE_NAME);
+      // Editor fallback: when an editor is viewing another person's bracket, they may
+      // fill in that person's KNOCKOUT picks on their behalf (e.g. the person can't do it).
+      const adminKoEdit = !!isEditor && !!isViewingOther && !!viewingId;
+      const koEditAllowed = selfKoEdit || adminKoEdit;
+      // For knockout cards specifically, allow editing if either not locked, or an override applies.
+      const koLocked = (effectiveLocked || isViewingOther) && !koEditAllowed;
+
+      const lockBracket = async () => {
+        if (!myId || myLocked) return;
+        if (!confirm("Are you sure? Once locked your predictions can't be changed!")) return;
+        // Reload predictions from DB to confirm everything saved
+        const { data: savedPreds } = await sb.from("wc_predictions").select("*").eq("participant_id", myId);
+        const savedCount = (savedPreds || []).length;
+        if (savedCount === 0) {
+          alert("No predictions were saved! Please re-enter your bracket before locking. (Check your internet connection.)");
+          return;
+        }
+        // Warn if the bracket looks incomplete (72 group games is a full set)
+        if (savedCount < 72) {
+          if (!confirm(`Only ${savedCount} predictions saved (a full bracket has many more). Some picks may not have saved. Lock anyway?`)) return;
+        } else if (!confirm(`${savedCount} predictions saved to the server. Lock in your bracket now?`)) {
+          return;
+        }
+        const { error } = await sb.from("wc_participants").update({ locked: true }).eq("id", myId);
+        if (error) { alert("Couldn't lock — try again."); return; }
+        setMyLocked(true);
+        localStorage.setItem("wc_locked", "true");
+        await loadAll();
+      };
+
+      const deleteParticipant = async (id, name) => {
+        if (!isEditor) return;
+        if (!confirm(`Delete ${name}'s bracket? This cannot be undone.`)) return;
+        await sb.from("wc_predictions").delete().eq("participant_id", id);
+        await sb.from("wc_participants").delete().eq("id", id);
+        if (id === myId) { localStorage.removeItem("wc_id"); localStorage.removeItem("wc_name"); localStorage.removeItem("wc_locked"); }
+        await loadAll();
+      };
+
+      const [saveError, setSaveError] = useState(false);
+
+      const savePrediction = async (matchId, homeScore, awayScore) => {
+        if (!myId || effectiveLocked) return;
+        // Optimistic UI update
+        setPredictions(prev => ({
+          ...prev,
+          [myId]: { ...(prev[myId]||{}), [matchId]: { ...(prev[myId]?.[matchId]||{}), match_id: matchId, home_score: homeScore, away_score: awayScore }}
+        }));
+        try {
+          const existing = predictions[myId]?.[matchId];
+          if (existing?.id) {
+            const { error } = await sb.from("wc_predictions").update({ home_score: homeScore, away_score: awayScore }).eq("id", existing.id);
+            if (error) throw error;
+          } else {
+            // upsert to avoid duplicate-key races
+            const { data, error } = await sb.from("wc_predictions")
+              .upsert({ participant_id: myId, match_id: matchId, home_score: homeScore, away_score: awayScore }, { onConflict: "participant_id,match_id" })
+              .select().single();
+            if (error) throw error;
+            if (data) {
+              setPredictions(prev => ({ ...prev, [myId]: { ...(prev[myId]||{}), [matchId]: data }}));
+            }
+          }
+          setSaveError(false);
+        } catch (e) {
+          console.error("Save failed:", e);
+          setSaveError(true);
+        }
+      };
+
+      const saveResult = async (matchId, homeScore, awayScore) => {
+        const existing = results[matchId];
+        if (existing) {
+          await sb.from("wc_results").update({ home_score: homeScore, away_score: awayScore, updated_at: new Date().toISOString() }).eq("id", existing.id);
+        } else {
+          await sb.from("wc_results").insert({ match_id: matchId, home_score: homeScore, away_score: awayScore });
+        }
+        setResults(prev => ({ ...prev, [matchId]: { ...(prev[matchId]||{}), match_id: matchId, home_score: homeScore, away_score: awayScore }}));
+      };
+
+      const calcPoints = (participantId) => {
+        let pts = 0;
+        const preds = predictions[participantId] || {};
+
+        // Resolve this participant's bracket path purely from THEIR predictions
+        const pGroupResults = {};
+        GROUP_MATCHES.forEach(m => {
+          const pred = preds[m.id];
+          if (pred?.home_score != null) pGroupResults[m.id] = pred;
+        });
+
+        // Group stage scoring
+        GROUP_MATCHES.forEach(m => {
+          const pred = preds[m.id];
+          const res = results[m.id];
+          if (!pred || res?.home_score == null || res?.away_score == null) return;
+          const predWinner = pred.home_score > pred.away_score ? "home" : pred.home_score < pred.away_score ? "away" : "draw";
+          const resWinner = res.home_score > res.away_score ? "home" : res.home_score < res.away_score ? "away" : "draw";
+          if (predWinner === resWinner) pts += 2;
+          if (pred.home_score === res.home_score && pred.away_score === res.away_score) pts += 1;
+        });
+
+        // Knockout scoring (ROUND-BASED): for each round, award 2pts for each team
+        // the participant picked to win in that round that actually won a match in that round.
+        // This avoids "right team, wrong slot" zero-point situations.
+        const rounds = ["R32","R16","QF","SF","F"];
+        // Resolve actual teams using real group results + real knockout results
+        const realGroupResults = {};
+        GROUP_MATCHES.forEach(m => { if (results[m.id]?.home_score != null) realGroupResults[m.id] = results[m.id]; });
+
+        rounds.forEach(round => {
+          const roundMatches = KNOCKOUT_MATCHES.filter(m => m.stage === round);
+
+          // Teams the participant picked to win in this round
+          const myWinners = new Set();
+          roundMatches.forEach(m => {
+            const pred = preds[m.id];
+            if (!pred || pred.home_score == null) return;
+            const myTeams = resolveKnockoutTeams(m.id, preds, pGroupResults, preds);
+            const w = pred.home_score > pred.away_score ? myTeams.home : myTeams.away;
+            if (w && w !== "TBD") myWinners.add(w);
+          });
+
+          // Teams that actually won in this round (from real results)
+          const actualWinners = new Set();
+          roundMatches.forEach(m => {
+            const res = results[m.id];
+            if (!res || res.home_score == null) return;
+            const actualTeams = resolveKnockoutTeams(m.id, preds, realGroupResults, results);
+            const w = res.home_score > res.away_score ? actualTeams.home : actualTeams.away;
+            if (w && w !== "TBD") actualWinners.add(w);
+          });
+
+          // Award 2pts per correctly-predicted advancing team in this round
+          myWinners.forEach(team => {
+            if (actualWinners.has(team)) pts += 2;
+          });
+        });
+        return pts;
+      };
+
+      const leaderboard = participants.map(p => ({ ...p, points: calcPoints(p.id) }))
+        .sort((a,b) => b.points - a.points);
+
+      const saveKnockoutPick = async (matchId, winner) => {
+        if (koLocked) return;
+        // Target the person whose bracket is shown: the viewed person when an editor is
+        // filling in on their behalf, otherwise the logged-in user.
+        const targetId = (adminKoEdit ? viewingId : myId);
+        if (!targetId) return;
+        // Store winner as home_score=1 away_score=0 if home wins, 0-1 if away
+        const homeScore = winner === "home" ? 1 : 0;
+        const awayScore = winner === "away" ? 1 : 0;
+        // Optimistic update
+        setPredictions(prev => ({
+          ...prev,
+          [targetId]: { ...(prev[targetId]||{}), [matchId]: { match_id: matchId, home_score: homeScore, away_score: awayScore } }
+        }));
+        try {
+          const { error } = await sb.from("wc_predictions").upsert(
+            { participant_id: targetId, match_id: matchId, home_score: homeScore, away_score: awayScore },
+            { onConflict: "participant_id,match_id" }
+          );
+          if (error) { setSaveError(true); }
+        } catch (e) { setSaveError(true); }
+      };
+
+      const groupMatches = GROUP_MATCHES.filter(m => m.group === activeGroup);
+      // When viewing someone else's bracket, show their preds (read-only)
+      const viewingPerson = viewingId ? participants.find(p => p.id === viewingId) : null;
+      const displayId = viewingId || myId;
+      const myPreds = predictions[displayId] || {};
+      const isViewingOther = viewingId && viewingId !== myId;
+
+      return (
+        <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a1628 0%,#0d2347 50%,#0a1628 100%)", fontFamily:"'Bebas Neue','Impact',sans-serif", color:"#e8f4fd" }}>
+          {/* Header */}
+          <div style={{ background:"rgba(218,165,32,0.08)", borderBottom:"1px solid rgba(218,165,32,0.2)", padding:"0 20px" }}>
+            <div style={{ maxWidth:720, margin:"0 auto" }}>
+              <div style={{ padding:"16px 0 6px", display:"flex", alignItems:"center", gap:12 }}>
+                <button onClick={onBack} style={{ background:"none", border:"none", color:"#fbbf24", cursor:"pointer", fontFamily:"Barlow", fontSize:13, padding:0 }}>← BACK</button>
+              </div>
+              <div style={{ fontSize:30, letterSpacing:3, color:"#fbbf24", lineHeight:1 }}>🏆 2026 FIFA WORLD CUP</div>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:4, marginBottom:10 }}>
+                <div style={{ fontSize:13, fontFamily:"Barlow", color:"#94a3b8" }}>BRACKET CHALLENGE</div>
+                <div style={{ display:"flex", alignItems:"center", gap:6, fontFamily:"Barlow", fontSize:11 }}>
+                  {syncing ? (
+                    <><div className="spinner" style={{ width:10, height:10, borderWidth:1 }} /><span style={{ color:"#4db8ff" }}>Syncing scores...</span></>
+                  ) : lastSync ? (
+                    <span style={{ color:"#334155" }}>● Last sync {lastSync.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}</span>
+                  ) : null}
+                  <button onClick={fetchLiveScores} style={{ background:"none", border:"1px solid #334155", borderRadius:4, color:"#475569", padding:"2px 8px", cursor:"pointer", fontFamily:"Barlow", fontSize:11 }}>↻ Sync</button>
+                </div>
+              </div>
+              <div style={{ display:"flex", overflowX:"auto", gap:0 }}>
+                {["daily","live","thirds","leaderboard","bracket",...(isEditor?["admin"]:[])] .map(v => (
+                  <button key={v} className="nav-btn" onClick={() => { setWcView(v); setViewingId(null); }}
+                    style={{ color:wcView===v?"#fbbf24":"#64748b", borderBottom:wcView===v?"2px solid #fbbf24":"2px solid transparent", fontSize:16 }}>
+                    {v.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"20px 20px" }}>
+
+            {/* Join banner */}
+            {!myId && wcView === "bracket" && !kickoffPassed && (
+              <div style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:10, padding:"20px", marginBottom:20 }}>
+                <div style={{ fontFamily:"Bebas Neue", fontSize:22, color:"#fbbf24", marginBottom:12 }}>JOIN THE BRACKET</div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <input type="text" placeholder="Your name..." value={nameInput} onChange={e=>setNameInput(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter") joinBracket(); }} style={{ flex:1 }} />
+                  <button onClick={joinBracket} style={{ background:"rgba(251,191,36,0.2)", border:"1px solid #fbbf24", borderRadius:6, color:"#fbbf24", padding:"8px 18px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:18 }}>JOIN</button>
+                </div>
+              </div>
+            )}
+
+            {/* Viewing someone else's bracket */}
+            {isViewingOther && wcView === "bracket" && (
+              <div style={{ background:"rgba(77,184,255,0.1)", border:"1px solid rgba(77,184,255,0.3)", borderRadius:8, padding:"10px 16px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <div style={{ fontFamily:"Barlow", fontSize:14, color:"#4db8ff" }}>
+                  {adminKoEdit
+                    ? <span>✏️ Editing <strong>{viewingPerson?.name}</strong>'s knockout picks on their behalf — tap teams to advance them</span>
+                    : <span>👁 Viewing <strong>{viewingPerson?.name}</strong>'s bracket · {calcPoints(viewingId)} pts</span>}
+                </div>
+                <button onClick={() => { setViewingId(null); setWcView("leaderboard"); }} style={{ background:"rgba(77,184,255,0.15)", border:"1px solid #4db8ff", borderRadius:6, color:"#4db8ff", padding:"6px 14px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:14, letterSpacing:1 }}>
+                  ← BACK
+                </button>
+              </div>
+            )}
+
+            {saveError && wcView === "bracket" && !isViewingOther && (
+              <div style={{ background:"rgba(248,113,113,0.15)", border:"1px solid #f87171", borderRadius:8, padding:"10px 16px", marginBottom:12, fontFamily:"Barlow", fontSize:13, color:"#f87171", textAlign:"center" }}>
+                ⚠️ A pick didn't save — check your connection and re-tap it before locking.
+              </div>
+            )}
+
+            {/* Kickoff countdown */}
+            {wcView === "bracket" && !isViewingOther && (() => {
+              if (kickoffPassed) {
+                return (
+                  <div style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:8, padding:"10px 16px", marginBottom:12, textAlign:"center", fontFamily:"Bebas Neue", fontSize:16, letterSpacing:1, color:"#f87171" }}>
+                    🔒 TOURNAMENT STARTED — BRACKETS LOCKED
+                  </div>
+                );
+              }
+              const diff = KICKOFF - now;
+              const d = Math.floor(diff/(1000*60*60*24));
+              const h = Math.floor((diff%(1000*60*60*24))/(1000*60*60));
+              const m = Math.floor((diff%(1000*60*60))/(1000*60));
+              const s = Math.floor((diff%(1000*60))/1000);
+              return (
+                <div style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:8, padding:"12px 16px", marginBottom:12, textAlign:"center" }}>
+                  <div style={{ fontFamily:"Barlow", fontSize:11, color:"#94a3b8", letterSpacing:2, marginBottom:4 }}>⏱ BRACKETS LOCK AT KICKOFF</div>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:26, color:"#fbbf24", letterSpacing:2 }}>
+                    {d}d {h}h {m}m {s}s
+                  </div>
+                </div>
+              );
+            })()}
+
+            {myId && wcView === "bracket" && !isViewingOther && (
+              <div style={{ background: koLocked?"rgba(248,113,113,0.08)":"rgba(74,222,128,0.08)", border:`1px solid ${koLocked?"rgba(248,113,113,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:8, padding:"10px 16px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <div style={{ fontFamily:"Barlow", fontSize:14, color: koLocked?"#f87171":"#4ade80" }}>
+                  {koEditAllowed
+                    ? <span>✏️ Knockout picks unlocked — tap teams to advance them, then you're done</span>
+                    : <span>{effectiveLocked ? "🔒 Bracket locked" : "✓ Filling out as"} <strong>{myName}</strong> · {calcPoints(myId)} pts so far</span>}
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  {!effectiveLocked && (
+                    <button onClick={lockBracket} style={{ background:"rgba(248,113,113,0.15)", border:"1px solid #f87171", borderRadius:6, color:"#f87171", padding:"6px 14px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:14, letterSpacing:1 }}>
+                      🔒 LOCK IN
+                    </button>
+                  )}
+                  {myLocked && !kickoffPassed && (
+                    <button onClick={async () => {
+                      await sb.from("wc_participants").update({ locked: false }).eq("id", myId);
+                      setMyLocked(false);
+                      localStorage.setItem("wc_locked", "false");
+                    }} style={{ background:"rgba(77,184,255,0.15)", border:"1px solid #4db8ff", borderRadius:6, color:"#4db8ff", padding:"6px 14px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:14, letterSpacing:1 }}>
+                      ✏️ EDIT
+                    </button>
+                  )}
+                  <button onClick={() => {
+                    localStorage.removeItem("wc_id"); localStorage.removeItem("wc_name"); localStorage.removeItem("wc_locked");
+                    setMyId(""); setMyName(""); setMyLocked(false);
+                  }} style={{ background:"none", border:"1px solid #334155", borderRadius:6, color:"#64748b", padding:"6px 12px", cursor:"pointer", fontFamily:"Barlow", fontSize:12 }}>
+                    Switch
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* BRACKET VIEW */}
+            {wcView === "bracket" && (
+              <div>
+                {/* Stage tabs - Groups only, knockout is in bracket view */}
+                <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+                  <button onClick={() => setActiveStage("group")}
+                    style={{ background:activeStage==="group"?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeStage==="group"?"#fbbf24":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeStage==="group"?"#fbbf24":"#64748b", padding:"6px 18px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16 }}>
+                    GROUPS
+                  </button>
+                  <button onClick={() => setActiveStage("knockout")}
+                    style={{ background:activeStage==="knockout"?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeStage==="knockout"?"#fbbf24":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeStage==="knockout"?"#fbbf24":"#64748b", padding:"6px 18px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16 }}>
+                    BRACKET
+                  </button>
+                </div>
+
+                {/* Group stage */}
+                {activeStage === "group" && (
+                  <div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+                      {Object.keys(WC_GROUPS).map(g => (
+                        <button key={g} onClick={() => setActiveGroup(g)}
+                          style={{ background:activeGroup===g?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeGroup===g?"#fbbf24":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeGroup===g?"#fbbf24":"#94a3b8", padding:"5px 12px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16 }}>
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontFamily:"Barlow", fontSize:12, color:"#475569", marginBottom:12 }}>
+                      Group {activeGroup}: {WC_GROUPS[activeGroup].join(" · ")}
+                    </div>
+                    {groupMatches.map(m => <MatchCard key={m.id} match={m} myPred={myPreds[m.id]} result={results[m.id]} onPredict={myId&&!effectiveLocked&&!isViewingOther?savePrediction:null} stage="group" locked={effectiveLocked||isViewingOther} />)}
+
+                    {/* Predicted standings */}
+                    {(() => {
+                      // Build a results map from this user's predictions for this group
+                      const predResults = {};
+                      groupMatches.forEach(m => {
+                        const p = myPreds[m.id];
+                        if (p && p.home_score != null) predResults[m.id] = { home_score: p.home_score, away_score: p.away_score };
+                      });
+                      const anyPreds = Object.keys(predResults).length > 0;
+                      const standings = calcGroupStandings(activeGroup, predResults);
+                      return (
+                        <div style={{ marginTop:20 }}>
+                          <div style={{ fontFamily:"Barlow", fontSize:11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase", marginBottom:10 }}>
+                            {anyPreds ? "Your Predicted Standings" : "Standings (predict scores above)"}
+                          </div>
+                          <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, overflow:"hidden" }}>
+                            {/* header */}
+                            <div style={{ display:"grid", gridTemplateColumns:"24px 1fr 28px 28px 28px 34px 30px", gap:4, padding:"8px 10px", borderBottom:"1px solid rgba(255,255,255,0.08)", fontFamily:"Barlow", fontSize:10, color:"#475569", letterSpacing:1 }}>
+                              <div></div><div>TEAM</div><div style={{ textAlign:"center" }}>W</div><div style={{ textAlign:"center" }}>D</div><div style={{ textAlign:"center" }}>L</div><div style={{ textAlign:"center" }}>GD</div><div style={{ textAlign:"center" }}>PTS</div>
+                            </div>
+                            {standings.map((t, i) => {
+                              const qualifies = i < 2;
+                              const thirdPlace = i === 2;
+                              return (
+                                <div key={t.name} style={{ display:"grid", gridTemplateColumns:"24px 1fr 28px 28px 28px 34px 30px", gap:4, padding:"9px 10px", alignItems:"center",
+                                  borderBottom: i<3 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                                  background: qualifies?"rgba(74,222,128,0.06)":thirdPlace?"rgba(251,191,36,0.05)":"transparent" }}>
+                                  <div style={{ fontFamily:"Bebas Neue", fontSize:15, color: qualifies?"#4ade80":thirdPlace?"#fbbf24":"#475569", textAlign:"center" }}>{i+1}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, fontWeight:600, color:"#e2e8f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.name}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.w}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.d}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.l}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.gd>0?"+":""}{t.gd}</div>
+                                  <div style={{ fontFamily:"Bebas Neue", fontSize:18, color:"#fff", textAlign:"center" }}>{t.pts}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display:"flex", gap:16, marginTop:8, fontFamily:"Barlow", fontSize:10, color:"#475569" }}>
+                            <span><span style={{ color:"#4ade80" }}>●</span> Advance (top 2)</span>
+                            <span><span style={{ color:"#fbbf24" }}>●</span> 3rd (may advance)</span>
+                          </div>
+
+                          {/* LIVE actual standings */}
+                          {(() => {
+                            const realResults = {};
+                            groupMatches.forEach(m => {
+                              const r = results[m.id];
+                              if (r && r.home_score != null) realResults[m.id] = { home_score: r.home_score, away_score: r.away_score };
+                            });
+                            const anyReal = Object.keys(realResults).length > 0;
+                            if (!anyReal) return null;
+                            const liveStandings = calcGroupStandings(activeGroup, realResults);
+                            const playedCount = Object.keys(realResults).length;
+                            return (
+                              <div style={{ marginTop:24 }}>
+                                <div style={{ fontFamily:"Barlow", fontSize:11, fontWeight:700, letterSpacing:2, color:"#4db8ff", textTransform:"uppercase", marginBottom:10 }}>
+                                  📡 Live Standings <span style={{ color:"#475569", fontWeight:400 }}>· {playedCount}/6 played</span>
+                                </div>
+                                <div style={{ background:"rgba(77,184,255,0.04)", border:"1px solid rgba(77,184,255,0.15)", borderRadius:8, overflow:"hidden" }}>
+                                  <div style={{ display:"grid", gridTemplateColumns:"24px 1fr 28px 28px 28px 34px 30px", gap:4, padding:"8px 10px", borderBottom:"1px solid rgba(255,255,255,0.08)", fontFamily:"Barlow", fontSize:10, color:"#475569", letterSpacing:1 }}>
+                                    <div></div><div>TEAM</div><div style={{ textAlign:"center" }}>W</div><div style={{ textAlign:"center" }}>D</div><div style={{ textAlign:"center" }}>L</div><div style={{ textAlign:"center" }}>GD</div><div style={{ textAlign:"center" }}>PTS</div>
+                                  </div>
+                                  {liveStandings.map((t, i) => {
+                                    const qualifies = i < 2;
+                                    const thirdPlace = i === 2;
+                                    // Did this team finish where the user predicted? compare to predicted standings
+                                    const predPos = standings.findIndex(s => s.name === t.name);
+                                    const moved = predPos >= 0 ? predPos - i : 0; // + = better than predicted
+                                    return (
+                                      <div key={t.name} style={{ display:"grid", gridTemplateColumns:"24px 1fr 28px 28px 28px 34px 30px", gap:4, padding:"9px 10px", alignItems:"center",
+                                        borderBottom: i<3 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                                        background: qualifies?"rgba(74,222,128,0.06)":thirdPlace?"rgba(251,191,36,0.05)":"transparent" }}>
+                                        <div style={{ fontFamily:"Bebas Neue", fontSize:15, color: qualifies?"#4ade80":thirdPlace?"#fbbf24":"#475569", textAlign:"center" }}>{i+1}</div>
+                                        <div style={{ fontFamily:"Barlow", fontSize:13, fontWeight:600, color:"#e2e8f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:5 }}>
+                                          {t.name}
+                                          {anyPreds && moved>0 && <span style={{ fontSize:9, color:"#4ade80" }}>▲{moved}</span>}
+                                          {anyPreds && moved<0 && <span style={{ fontSize:9, color:"#f87171" }}>▼{-moved}</span>}
+                                        </div>
+                                        <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.w}</div>
+                                        <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.d}</div>
+                                        <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.l}</div>
+                                        <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.gd>0?"+":""}{t.gd}</div>
+                                        <div style={{ fontFamily:"Bebas Neue", fontSize:18, color:"#fff", textAlign:"center" }}>{t.pts}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                {anyPreds && (
+                                  <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginTop:8 }}>
+                                    <span style={{ color:"#4ade80" }}>▲</span>/<span style={{ color:"#f87171" }}>▼</span> shows movement vs your predicted finish
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Horizontal knockout bracket — my/their predicted bracket */}
+                {activeStage === "knockout" && (
+                  <KnockoutBracket
+                    myPreds={myPreds} results={results}
+                    onPredict={displayId&&!koLocked?saveKnockoutPick:null}
+                    locked={koLocked}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* LIVE actual knockout bracket — its own tab */}
+            {wcView === "live" && (
+              <div>
+                <div style={{ fontFamily:"Bebas Neue", fontSize:26, color:"#4db8ff", letterSpacing:2 }}>📡 LIVE BRACKET</div>
+                <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", marginBottom:16 }}>
+                  The real knockout bracket as it unfolds — updates automatically as results come in.
+                </div>
+                <KnockoutBracket
+                  myPreds={results} results={results}
+                  onPredict={null}
+                  locked={true}
+                  actualMode={true}
+                />
+              </div>
+            )}
+
+            {/* 3RD PLACE RACE */}
+            {wcView === "thirds" && (
+              <ThirdPlaceTab results={results} />
+            )}
+
+            {/* DAILY SUMMARY */}
+            {wcView === "daily" && (
+              <DailySummary apiMatches={apiMatches} results={results} predictions={predictions} participants={participants} leaderboard={leaderboard} calcPoints={calcPoints} />
+            )}
+
+            {/* LEADERBOARD */}
+            {wcView === "leaderboard" && (
+              <div>
+                <div className="section-title">Bracket Leaderboard</div>
+                {loading ? <Loading /> : leaderboard.length === 0 ? (
+                  <div style={{ fontFamily:"Barlow", color:"#475569", fontSize:14 }}>No participants yet.</div>
+                ) : leaderboard.map((p,i) => (
+                  <div key={p.id} onClick={() => { setViewingId(p.id); setWcView("bracket"); setActiveStage("group"); }}
+                    style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", borderRadius:8, marginBottom:6, cursor:"pointer",
+                    background:p.id===myId?"rgba(251,191,36,0.08)":"rgba(255,255,255,0.03)",
+                    border:`1px solid ${p.id===myId?"rgba(251,191,36,0.3)":"rgba(255,255,255,0.06)"}` }}>
+                    <div style={{ fontFamily:"Bebas Neue", fontSize:20, color:i<3?["#fbbf24","#94a3b8","#b45309"][i]:"#334155", minWidth:24, textAlign:"center" }}>{i+1}</div>
+                    <div style={{ flex:1, fontFamily:"Barlow", fontSize:15, fontWeight:600, color:"#e2e8f0" }}>{p.name}{p.id===myId?" (you)":""} <span style={{ fontSize:11, color:"#475569" }}>👁</span></div>
+                    <div style={{ fontFamily:"Bebas Neue", fontSize:28, color:"#fbbf24" }}>{p.points}</div>
+                    <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569" }}>pts</div>
+                    {isEditor && (
+                      <button onClick={(e) => { e.stopPropagation(); deleteParticipant(p.id, p.name); }}
+                        style={{ background:"none", border:"1px solid rgba(248,113,113,0.3)", borderRadius:5, color:"#f87171", padding:"4px 8px", cursor:"pointer", fontFamily:"Barlow", fontSize:12 }}>✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ADMIN - enter real results */}
+            {wcView === "admin" && isEditor && (
+              <div>
+                <div className="section-title">Enter Real Results</div>
+                <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto" }}>
+                  {[{key:"group",label:"Groups"},{key:"R32",label:"R32"},{key:"R16",label:"R16"},{key:"QF",label:"QF"},{key:"SF",label:"SF"},{key:"F",label:"Final"}].map(s => (
+                    <button key={s.key} onClick={() => setActiveStage(s.key)}
+                      style={{ background:activeStage===s.key?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeStage===s.key?"#f87171":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeStage===s.key?"#f87171":"#64748b", padding:"6px 14px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16, whiteSpace:"nowrap" }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                {activeStage === "group" && (
+                  <div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+                      {Object.keys(WC_GROUPS).map(g => (
+                        <button key={g} onClick={() => setActiveGroup(g)}
+                          style={{ background:activeGroup===g?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeGroup===g?"#f87171":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeGroup===g?"#f87171":"#94a3b8", padding:"5px 12px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16 }}>
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                    {groupMatches.map(m => <AdminMatchCard key={m.id} match={m} result={results[m.id]} onSave={saveResult} />)}
+                  </div>
+                )}
+                {activeStage !== "group" && KNOCKOUT_MATCHES.filter(m=>m.stage===activeStage).map(m => (
+                  <AdminMatchCard key={m.id} match={m} result={results[m.id]} onSave={saveResult} label={m.label} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Resolve who plays in a knockout match based on picks and group results
+    function resolveKnockoutTeams(matchId, preds, groupResults, koResults, allowPartial) {
+      const match = KNOCKOUT_MATCHES.find(m => m.id === matchId);
+      if (!match) return { home: "TBD", away: "TBD" };
+
+      if (match.stage === "R32") {
+        return {
+          home: resolveSlot(match.home, groupResults, match.id, allowPartial),
+          away: resolveSlot(match.away, groupResults, match.id, allowPartial),
+        };
+      }
+
+      const getWinner = (feedId) => {
+        const res = koResults[feedId];
+        const pred = preds[feedId];
+        const teams = resolveKnockoutTeams(feedId, preds, groupResults, koResults, allowPartial);
+        if (res?.home_score != null) {
+          return res.home_score > res.away_score ? teams.home : teams.away;
+        }
+        if (pred?.home_score != null) {
+          return pred.home_score > pred.away_score ? teams.home : teams.away;
+        }
+        // Game not decided yet. In live/actual mode, show a descriptive placeholder
+        // like "Winner USA/Bosnia" once both feeding teams are known.
+        if (allowPartial) {
+          const h = teams.home, a = teams.away;
+          const known = (t) => t && t !== "TBD" && !t.includes("Winner") && !t.includes("3rd") && !t.includes("Place") && !t.includes("1st") && !t.includes("2nd");
+          if (known(h) && known(a)) return `Winner ${h}/${a}`;
+        }
+        return "TBD";
+      };
+
+      return {
+        home: getWinner(match.feedHome),
+        away: getWinner(match.feedAway),
+      };
+    }
+
+    // Pre-written previews for ALL 72 group stage matches (Round 1 batch).
+    // Keyed by "home|away" (lowercase). App also checks the reversed key.
+    const GAME_PREVIEWS = {
+      // GROUP A
+      "mexico|south africa": { outlook:"Co-hosts Mexico opened the tournament with home advantage and a vocal crowd behind them. South Africa will defend deep and hit on the break, but El Tri's quality should tell.", homeKey:{player:"Santiago Gimenez", note:"Mexico's clinical striker leads the line."}, awayKey:{player:"Percy Tau", note:"South Africa's most creative attacker."} },
+      "mexico|south korea": { outlook:"A competitive Group A clash. Mexico's technical edge faces a disciplined, energetic South Korea side that never stops running.", homeKey:{player:"Hirving Lozano", note:"Pace and directness down the flank."}, awayKey:{player:"Son Heung-min", note:"South Korea's captain and world-class match-winner."} },
+      "mexico|czechia": { outlook:"Mexico have already won Group A and may rotate. Czechia (1 pt) must win and hope other results fall right to grab a third-place spot. A desperate Czech side vs a relaxed Mexico.", homeKey:{player:"Raul Jimenez", note:"Could start as Mexico manage minutes."}, awayKey:{player:"Patrik Schick", note:"Czechia's main hope — must score to stay alive."} },
+      "south africa|south korea": { outlook:"A knockout shootout — South Korea (3 pts) need a draw, South Africa (1 pt) likely need a win to chase second or a third-place spot. Tense for both.", homeKey:{player:"Lyle Foster", note:"South Africa need their striker to deliver."}, awayKey:{player:"Son Heung-min", note:"Korea's captain with qualification on the line."} },
+      "south africa|czechia": { outlook:"A potentially decisive game for second place. Czechia's physicality against South Africa's pace makes for an intriguing battle.", homeKey:{player:"Themba Zwane", note:"South Africa's veteran playmaker."}, awayKey:{player:"Tomas Soucek", note:"Dominant in the air at both ends."} },
+      "south korea|czechia": { outlook:"Both teams will back themselves to advance. South Korea's tempo against Czechia's structure could decide who finishes higher.", homeKey:{player:"Son Heung-min", note:"Always the danger man for Korea."}, awayKey:{player:"Patrik Schick", note:"A constant aerial and finishing threat."} },
+      // GROUP B
+      "canada|bosnia-herzegovina": { outlook:"Co-hosts Canada open at home with energy and pace. Bosnia bring physicality and a real goal threat up top.", homeKey:{player:"Alphonso Davies", note:"Canada's flying full-back and biggest star."}, awayKey:{player:"Edin Dzeko", note:"The veteran striker still finds the net."} },
+      "canada|qatar": { outlook:"Canada's athleticism should give them the upper hand against an organized Qatar side that keeps things tight.", homeKey:{player:"Jonathan David", note:"Canada's clinical center forward."}, awayKey:{player:"Akram Afif", note:"Qatar's creative talisman."} },
+      "canada|switzerland": { outlook:"Top spot on the line — both on 4 points. Canada smashed Qatar 6-0; Switzerland thumped Bosnia 4-1. Winner takes Group B; both are already well placed to advance.", homeKey:{player:"Jonathan David", note:"Canada's striker in red-hot form."}, awayKey:{player:"Granit Xhaka", note:"Switzerland's leader in a decider."} },
+      "bosnia-herzegovina|qatar": { outlook:"Bosnia (3 pts) need a win and results elsewhere to chase a third-place spot after losing to Switzerland. Qatar (0 pts) are eliminated. Expect Bosnia to throw everything forward.", homeKey:{player:"Edin Dzeko", note:"Must lead Bosnia's must-win charge."}, awayKey:{player:"Akram Afif", note:"Qatar's lone bright spark, playing for pride."} },
+      "bosnia-herzegovina|switzerland": { outlook:"Switzerland's organization makes them favorites, but Bosnia have the firepower to cause an upset.", homeKey:{player:"Edin Dzeko", note:"Experience and aerial presence."}, awayKey:{player:"Granit Xhaka", note:"Controls the tempo from deep."} },
+      "qatar|switzerland": { outlook:"Switzerland should have too much quality, but Qatar will be organized and hard to break down.", homeKey:{player:"Akram Afif", note:"Qatar's spark in the final third."}, awayKey:{player:"Breel Embolo", note:"Switzerland's powerful striker."} },
+      // GROUP C
+      "brazil|morocco": { outlook:"A blockbuster opener. Brazil's samba flair faces a Morocco side fresh off deep tournament runs and full of belief.", homeKey:{player:"Vinicius Junior", note:"Brazil's electric, match-winning winger."}, awayKey:{player:"Achraf Hakimi", note:"Morocco's marauding, world-class full-back."} },
+      "brazil|haiti": { outlook:"Brazil are heavy favorites against debutants Haiti, who will look to enjoy the moment and defend resolutely.", homeKey:{player:"Rodrygo", note:"Pace and finishing off either flank."}, awayKey:{player:"Frantzdy Pierrot", note:"Haiti's main striker and outlet."} },
+      "brazil|scotland": { outlook:"Brazil (4 pts) lead on goal difference and a win seals top spot. Scotland (3 pts) need a result to chase qualification. A huge ask for the Scots against the Selecao.", homeKey:{player:"Vinicius Junior", note:"Brazil's match-winner looking to seal the group."}, awayKey:{player:"Scott McTominay", note:"Scotland's engine must drive a famous result."} },
+      "morocco|haiti": { outlook:"Morocco (4 pts) can clinch top spot with a win over an already-eliminated Haiti. Morocco's quality should tell as they aim to finish first.", homeKey:{player:"Achraf Hakimi", note:"Drives Morocco forward — wants the group won."}, awayKey:{player:"Frantzdy Pierrot", note:"Haiti's striker plays for pride."} },
+      "morocco|scotland": { outlook:"A potentially decisive game for the knockout places. Morocco's flair against Scotland's grit.", homeKey:{player:"Brahim Diaz", note:"Morocco's creative wand."}, awayKey:{player:"Scott McTominay", note:"Scotland's driving midfielder."} },
+      "haiti|scotland": { outlook:"Haiti are already eliminated; Scotland (3 pts) need at least a draw to stay in third-place contention. The Scots will be wary of an upset against a Haiti side now playing freely.", homeKey:{player:"Frantzdy Pierrot", note:"Haiti's striker plays for pride and a famous result."}, awayKey:{player:"Scott McTominay", note:"Scotland's engine must drive them to the points they need."} },
+      // GROUP D
+      "usa|paraguay": { outlook:"Co-hosts USA open in front of a raucous home crowd. Paraguay are gritty and organized, but the Americans' energy should carry them.", homeKey:{player:"Christian Pulisic", note:"USA's captain and talisman."}, awayKey:{player:"Miguel Almiron", note:"Paraguay's pacey attacking threat."} },
+      "usa|australia": { outlook:"A physical, end-to-end battle expected. USA's home advantage and depth give them the edge over a battling Australia.", homeKey:{player:"Christian Pulisic", note:"The difference-maker for the US."}, awayKey:{player:"Mathew Leckie", note:"Australia's experienced runner."} },
+      "usa|turkey": { outlook:"USA have already won Group D and could rest players. Turkiye (0 pts) are eliminated after losing to Australia and Paraguay. Pride on the line for the Turks against a rotated US side.", homeKey:{player:"Christian Pulisic", note:"May be rested as the US manage their group win."}, awayKey:{player:"Arda Guler", note:"Turkiye's young star wants to end on a high."} },
+      "paraguay|australia": { outlook:"A straight knockout shootout for second behind the USA — Australia (3 pts) vs Paraguay (3 pts). Winner advances, loser sweats on a third-place spot. Tight and tense.", homeKey:{player:"Miguel Almiron", note:"Paraguay's creative spark in a must-win."}, awayKey:{player:"Mathew Leckie", note:"Australia's experienced runner in a decider."} },
+      "paraguay|turkey": { outlook:"Turkey's flair against Paraguay's resilience. The Turks' attacking talent makes them slight favorites.", homeKey:{player:"Julio Enciso", note:"Paraguay's exciting young attacker."}, awayKey:{player:"Arda Guler", note:"Can unlock any defense."} },
+      "australia|turkey": { outlook:"Turkey's quality should tell, but Australia never make it easy and will battle to the final whistle.", homeKey:{player:"Jackson Irvine", note:"Australia's all-action captain."}, awayKey:{player:"Hakan Calhanoglu", note:"Turkey's set-piece and passing master."} },
+      // GROUP E
+      "germany|curacao": { outlook:"Germany flexed their attacking muscle in a big opening win. Curacao, one of the smallest nations ever at a World Cup, will defend in numbers.", homeKey:{player:"Florian Wirtz", note:"Germany's creative heartbeat."}, awayKey:{player:"Leandro Bacuna", note:"Curacao's experienced leader."} },
+      "germany|ivory coast": { outlook:"Germany's polish faces a powerful, athletic Ivory Coast side. Could be a sterner test for the Germans.", homeKey:{player:"Jamal Musiala", note:"Mesmerizing on the ball."}, awayKey:{player:"Sebastien Haller", note:"Ivory Coast's clinical striker."} },
+      "germany|ecuador": { outlook:"Germany have qualified and lead Group E after beating Curacao 7-1 and Ivory Coast 2-1. Ecuador (1 pt) need a win and other results to chase a third-place spot. A tough task against a clinical Germany.", homeKey:{player:"Florian Wirtz", note:"Germany's creative heartbeat, in dazzling form."}, awayKey:{player:"Moises Caicedo", note:"Ecuador's engine must inspire an upset."} },
+      "curacao|ivory coast": { outlook:"Ivory Coast (3 pts) can seal a knockout spot with a win; Curacao (1 pt) cling to slim third-place hopes on their debut. Ivory Coast's quality against a battling Curacao.", homeKey:{player:"Leandro Bacuna", note:"Curacao's leader chasing more history."}, awayKey:{player:"Sebastien Haller", note:"Ivory Coast's striker wants to seal qualification."} },
+      "curacao|ecuador": { outlook:"Ecuador's energy and structure should overcome a Curacao side enjoying their historic debut.", homeKey:{player:"Juninho Bacuna", note:"Curacao's creative midfielder."}, awayKey:{player:"Enner Valencia", note:"Ecuador's all-time top scorer."} },
+      "ivory coast|ecuador": { outlook:"A potential knockout-decider. Ivory Coast's power against Ecuador's youthful drive.", homeKey:{player:"Sebastien Haller", note:"Ivory Coast's goal threat."}, awayKey:{player:"Moises Caicedo", note:"Controls the midfield."} },
+      // GROUP F
+      "netherlands|japan": { outlook:"The Dutch opened with a hard-fought draw. Japan's slick, fast passing makes them one of the most watchable sides around.", homeKey:{player:"Cody Gakpo", note:"Netherlands' in-form attacker."}, awayKey:{player:"Takefusa Kubo", note:"Japan's dazzling playmaker."} },
+      "netherlands|sweden": { outlook:"Netherlands' technical quality against Sweden's directness and set-piece threat. Could be tighter than expected.", homeKey:{player:"Virgil van Dijk", note:"Commands the Dutch defense."}, awayKey:{player:"Alexander Isak", note:"Sweden's lethal finisher."} },
+      "netherlands|tunisia": { outlook:"The Netherlands (6 pts) have already won Group F and may rotate. Tunisia (0 pts) are eliminated and play for pride. Expect a relaxed Dutch side against a determined Tunisia.", homeKey:{player:"Cody Gakpo", note:"May be rested as the Dutch manage their group win."}, awayKey:{player:"Hannibal Mejbri", note:"Tunisia's energy, playing for pride."} },
+      "japan|sweden": { outlook:"A likely decider for second behind the Netherlands. Japan (3 pts after a 4-0 rout of Tunisia) face Sweden (3 pts, beat Tunisia big but lost 5-1 to the Dutch). Winner is well placed to advance.", homeKey:{player:"Takefusa Kubo", note:"Japan's creative spark in a key clash."}, awayKey:{player:"Alexander Isak", note:"Sweden's lethal finisher leading the line."} },
+      "japan|tunisia": { outlook:"Japan's quick passing should unlock a disciplined Tunisia side, but the Eagles defend well.", homeKey:{player:"Wataru Endo", note:"Japan's midfield anchor."}, awayKey:{player:"Youssef Msakni", note:"Tunisia's experienced creator."} },
+      "sweden|tunisia": { outlook:"Sweden's firepower against Tunisia's organization should make for an open game.", homeKey:{player:"Alexander Isak", note:"A threat in front of goal."}, awayKey:{player:"Youssef Msakni", note:"Tunisia's main outlet."} },
+      // GROUP G
+      "belgium|egypt": { outlook:"Belgium's golden generation veterans face a physical Egypt side. Expect Belgium to dominate the ball, with Egypt dangerous in transition.", homeKey:{player:"Kevin De Bruyne", note:"Still the orchestrator who unlocks any defense."}, awayKey:{player:"Mohamed Salah", note:"Egypt live and die by their captain."} },
+      "belgium|iran": { outlook:"In a wide-open Group G where everyone drew their openers, both need a win. Belgium (1 pt after drawing Egypt) bring quality; Iran (2 pts after a 2-2 with New Zealand) will sit deep and counter. Patience is key for Belgium.", homeKey:{player:"Jeremy Doku", note:"Electric dribbling Belgium need to break Iran down."}, awayKey:{player:"Mehdi Taremi", note:"Iran's clinical striker and main threat."} },
+      "belgium|new zealand": { outlook:"Belgium need a win to be sure of advancing from a wide-open Group G. New Zealand, alive after a stunning 2-2 with Iran, dream of a historic upset against the Belgians.", homeKey:{player:"Kevin De Bruyne", note:"Belgium need their maestro to unlock it."}, awayKey:{player:"Chris Wood", note:"New Zealand's target man chasing history."} },
+      "egypt|iran": { outlook:"Group G is wide open. Egypt (lean on Salah) and Iran meet in a likely decisive battle for a knockout spot. A massive game for two star forwards.", homeKey:{player:"Mohamed Salah", note:"Egypt's everything — must deliver."}, awayKey:{player:"Mehdi Taremi", note:"Iran's clinical striker in a pivotal clash."} },
+      "egypt|new zealand": { outlook:"Group G is wide open after all four drew. Egypt (1 pt, drew Belgium) need a win and lean on Salah; New Zealand (2 pts after a stunning 2-2 with Iran) are alive and dreaming. A real chance for both.", homeKey:{player:"Mohamed Salah", note:"Egypt's everything — must deliver in a key game."}, awayKey:{player:"Chris Wood", note:"New Zealand's target man chasing more history."} },
+      "iran|new zealand": { outlook:"A tight, evenly-matched contest. Iran's experience gives them a slight edge over a hard-working New Zealand.", homeKey:{player:"Mehdi Taremi", note:"Iran's main goal threat."}, awayKey:{player:"Chris Wood", note:"New Zealand's focal point."} },
+      // GROUP H
+      "spain|cape verde": { outlook:"Spain arrive as one of the favorites and should control possession against debutants Cape Verde, who will defend in a block.", homeKey:{player:"Lamine Yamal", note:"Spain's teenage creative spark."}, awayKey:{player:"Ryan Mendes", note:"Cape Verde's captain and outlet."} },
+      "spain|saudi arabia": { outlook:"Spain (1 pt) stumbled to a goalless draw with Cape Verde and need a win to take charge of a wide-open group. Saudi Arabia (1 pt) love an upset. Spain must turn possession into goals this time.", homeKey:{player:"Lamine Yamal", note:"Spain need their young star to unlock a stubborn defense."}, awayKey:{player:"Salem Al-Dawsari", note:"Saudi's match-winner thrives in these moments."} },
+      "spain|uruguay": { outlook:"A heavyweight decider in a tight group. Spain need a win to top Group H after a stuttering start; Uruguay's grit against Spain's possession with qualification on the line.", homeKey:{player:"Lamine Yamal", note:"Spain's young star must deliver under pressure."}, awayKey:{player:"Federico Valverde", note:"Uruguay's engine must drive them through."} },
+      "cape verde|saudi arabia": { outlook:"In a wide-open Group H, this is effectively must-win for both. Cape Verde stunned Spain; Saudi held Uruguay. Whoever wins surges toward a knockout spot on a historic run.", homeKey:{player:"Ryan Mendes", note:"Cape Verde's leader chasing more history."}, awayKey:{player:"Salem Al-Dawsari", note:"Saudi's match-winner thrives in big moments."} },
+      "cape verde|uruguay": { outlook:"Group H is wide open after all four drew their openers. Cape Verde stunned Spain with a 0-0 draw; Uruguay were held by Saudi Arabia. Both need points in a pivotal clash — Uruguay's quality against Cape Verde's belief.", homeKey:{player:"Ryan Mendes", note:"Cape Verde's leader after a historic point vs Spain."}, awayKey:{player:"Darwin Nunez", note:"Uruguay's relentless striker needs to find the net."} },
+      "saudi arabia|uruguay": { outlook:"Uruguay's blend of grit and quality makes them favorites, but Saudi Arabia thrive as underdogs.", homeKey:{player:"Salem Al-Dawsari", note:"Knack for big moments."}, awayKey:{player:"Federico Valverde", note:"Box-to-box all game."} },
+      // GROUP I
+      "france|senegal": { outlook:"A heavyweight clash. France's attacking depth makes them favorites, but Senegal have the pace and power to trouble anyone.", homeKey:{player:"Kylian Mbappe", note:"The tournament's marquee attacker."}, awayKey:{player:"Nicolas Jackson", note:"Dangerous running in behind."} },
+      "france|iraq": { outlook:"France (3 pts after beating Senegal) can move toward qualification against a wounded Iraq (0 pts, lost 4-1 to Norway). The holders' challengers have the quality; Iraq must dig in to survive.", homeKey:{player:"Kylian Mbappe", note:"France's superstar looking to seal progress."}, awayKey:{player:"Aymen Hussein", note:"Iraq's striker in a near must-win."} },
+      "france|norway": { outlook:"A blockbuster decider for top spot — France and Norway both flying. Winner tops Group I and likely earns a kinder draw. Mbappe vs Haaland headlines a potential classic.", homeKey:{player:"Kylian Mbappe", note:"France's superstar in a marquee showdown."}, awayKey:{player:"Erling Haaland", note:"Norway's deadly finisher in ruthless form."} },
+      "senegal|iraq": { outlook:"Senegal need a win and results to chase a third-place spot after a tough group; Iraq (0 pts, lost 4-1 to Norway) play for pride. Senegal's power against a battling Iraq.", homeKey:{player:"Sadio Mane", note:"Senegal's talisman in a must-win."}, awayKey:{player:"Aymen Hussein", note:"Iraq's striker hoping to spring a surprise."} },
+      "senegal|norway": { outlook:"Huge for both — Norway (3 pts) are flying after thrashing Iraq 4-1, while Senegal (0 pts after losing to France) are under real pressure and may need a win to survive. A wounded Senegal against Haaland in form.", homeKey:{player:"Sadio Mane", note:"Senegal's talisman in a near must-win."}, awayKey:{player:"Erling Haaland", note:"Ruthless after his goals against Iraq."} },
+      "iraq|norway": { outlook:"Norway's firepower makes them clear favorites, but Iraq will sit deep and frustrate.", homeKey:{player:"Aymen Hussein", note:"Iraq's main striker."}, awayKey:{player:"Erling Haaland", note:"The deadly focal point."} },
+      // GROUP J
+      "argentina|algeria": { outlook:"The reigning champions open against a tricky Algeria side. Argentina's pedigree makes them strong favorites.", homeKey:{player:"Lionel Messi", note:"Chasing one more World Cup magic moment."}, awayKey:{player:"Riyad Mahrez", note:"Algeria's creative talisman."} },
+      "argentina|austria": { outlook:"A Group J top-spot decider — both won their openers (Argentina 3-0 Algeria, Austria 3-1 Jordan). Winner controls the group and likely earns a kinder knockout draw. A genuine test for the champions.", homeKey:{player:"Lionel Messi", note:"The maestro in a game that shapes Argentina's path."}, awayKey:{player:"Marcel Sabitzer", note:"Austria's driving force in their biggest test yet."} },
+      "argentina|jordan": { outlook:"Argentina have already won Group J and will rotate. Debutants Jordan (0 pts) play for pride against the champions — a chance to enjoy the occasion against a rested Argentina.", homeKey:{player:"Lionel Messi", note:"Likely rested as Argentina manage their group."}, awayKey:{player:"Mousa Al-Taamari", note:"Jordan's spark wants a memorable moment."} },
+      "algeria|austria": { outlook:"Austria (3 pts) need a result to seal second behind Argentina; Algeria (0 pts) must win to keep slim hopes alive. Algeria's flair against Austria's intensity.", homeKey:{player:"Riyad Mahrez", note:"Algeria's talisman in a must-win."}, awayKey:{player:"Marcel Sabitzer", note:"Austria's driving force chasing qualification."} },
+      "algeria|jordan": { outlook:"Effectively must-win for both after losing their openers — Algeria fell to Argentina, Jordan to Austria. The loser is eliminated. Algeria's flair against Jordan's fighting spirit in a high-stakes clash.", homeKey:{player:"Riyad Mahrez", note:"Algeria's talisman must rescue their campaign."}, awayKey:{player:"Mousa Al-Taamari", note:"Jordan's spark in a do-or-die game."} },
+      "austria|jordan": { outlook:"Austria's well-drilled, pressing side are favorites against debutants Jordan.", homeKey:{player:"Marcel Sabitzer", note:"Full of running and goals."}, awayKey:{player:"Mousa Al-Taamari", note:"Jordan's hope of magic."} },
+      // GROUP K
+      "portugal|dr congo": { outlook:"Portugal's star-studded squad should have too much for DR Congo, who carry pace on the break.", homeKey:{player:"Cristiano Ronaldo", note:"Still hunting goals on the biggest stage."}, awayKey:{player:"Silas Katompa", note:"DR Congo's pacey outlet."} },
+      "portugal|uzbekistan": { outlook:"Portugal (1 pt) underwhelmed in a draw with DR Congo and need a win to take control of Group K. Debutants Uzbekistan (0 pts after losing to Colombia) will defend deep. Portugal's quality must finally show.", homeKey:{player:"Cristiano Ronaldo", note:"Under pressure to deliver after a flat opener."}, awayKey:{player:"Eldor Shomurodov", note:"Uzbekistan's lone outlet on the counter."} },
+      "portugal|colombia": { outlook:"A decider for top spot — Colombia (6 pts) have qualified and lead; Portugal (4 pts after thrashing Uzbekistan 5-0) need a win to top the group. Ronaldo vs a flying Colombia.", homeKey:{player:"Cristiano Ronaldo", note:"Portugal's talisman in a big game."}, awayKey:{player:"Luis Diaz", note:"Colombia's electric attacker in form."} },
+      "dr congo|uzbekistan": { outlook:"DR Congo (1 pt) need a win and results to chase a third-place spot; debutants Uzbekistan (0 pts) are eliminated after a 5-0 loss to Portugal. DR Congo's athleticism against Uzbekistan.", homeKey:{player:"Silas Katompa", note:"DR Congo's main threat in a must-win."}, awayKey:{player:"Eldor Shomurodov", note:"Uzbekistan's focal point, playing for pride."} },
+      "dr congo|colombia": { outlook:"Colombia (3 pts) lead Group K and a win likely secures top spot. DR Congo (1 pt after holding Portugal) need points to chase a knockout place. DR Congo's athleticism against Colombia's creativity.", homeKey:{player:"Silas Katompa", note:"DR Congo need their pacey winger to shine."}, awayKey:{player:"Luis Diaz", note:"Colombia's match-winner in form."} },
+      "uzbekistan|colombia": { outlook:"Colombia's flair and experience make them favorites against organized debutants Uzbekistan.", homeKey:{player:"Eldor Shomurodov", note:"Uzbekistan's focal point."}, awayKey:{player:"Luis Diaz", note:"A threat every time he runs."} },
+      // GROUP L
+      "england|croatia": { outlook:"A blockbuster. England's deep, talented squad face a Croatia side built on midfield mastery. Could be decided by fine margins.", homeKey:{player:"Jude Bellingham", note:"Drives England forward."}, awayKey:{player:"Luka Modric", note:"Still pulling Croatia's strings."} },
+      "england|ghana": { outlook:"Both on 3 points (England top on goal difference) in a real battle for Group L. Ghana are flying and full of confidence; England will want to assert their quality and top the group.", homeKey:{player:"Jude Bellingham", note:"England's driving force in a group decider."}, awayKey:{player:"Mohammed Kudus", note:"Ghana's danger man, brimming with confidence."} },
+      "england|panama": { outlook:"England (4 pts) need a result to be sure of topping Group L after a shock 0-0 with Ghana. Panama (0 pts) are likely eliminated but will defend deep and frustrate.", homeKey:{player:"Harry Kane", note:"England's talisman wants the group sealed."}, awayKey:{player:"Adalberto Carrasquilla", note:"Panama's heartbeat in a tough test."} },
+      "croatia|ghana": { outlook:"Huge for both — Ghana (4 pts) can qualify with a result; Croatia (3 pts after beating Panama) need a win to be sure. Croatia's midfield mastery against Ghana's power in a decider.", homeKey:{player:"Luka Modric", note:"Croatia's veteran drives the team."}, awayKey:{player:"Mohammed Kudus", note:"Ghana's danger man, full of confidence."} },
+      "croatia|panama": { outlook:"Effectively must-win for both after opening defeats — both sit on 0 points and the loser is all but eliminated. Croatia's midfield mastery against Panama's fighting spirit in a high-stakes clash.", homeKey:{player:"Luka Modric", note:"Croatia's veteran has to rescue their campaign."}, awayKey:{player:"Adalberto Carrasquilla", note:"Panama's heartbeat must step up under pressure."} },
+      "ghana|panama": { outlook:"An open, competitive match. Ghana's athleticism gives them a slight edge, but Panama are dangerous on set pieces.", homeKey:{player:"Mohammed Kudus", note:"Ghana's creative talisman."}, awayKey:{player:"Adalberto Carrasquilla", note:"Sets Panama's tempo."} },
+    };
+
+    function GamePreview({ home, away }) {
+      const [open, setOpen] = useState(false);
+      // Canonicalize team names so API variants (e.g. "Congo DR" vs "DR Congo") still match
+      const canonTeam = (s) => {
+        // Normalize accents (Curaçao -> curacao, Türkiye -> turkiye) before stripping
+        const n = (s||"").toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+          .replace(/[^a-z]/g,"");
+        const map = {
+          "unitedstates":"usa","us":"usa","unitedstatesofamerica":"usa",
+          "korearepublic":"southkorea","republicofkorea":"southkorea","korea":"southkorea",
+          "czechrepublic":"czechia",
+          "irislamicrepublicofiran":"iran","iranislamicrepublic":"iran",
+          "cotedivoire":"ivorycoast",
+          "democraticrepublicofthecongo":"drcongo","congodr":"drcongo","congo":"drcongo","drcongo":"drcongo",
+          "caboverde":"capeverde","capeverdeislands":"capeverde",
+          "bosniaandherzegovina":"bosniaherzegovina","bosnia":"bosniaherzegovina",
+          "turkiye":"turkey",
+          "curacao":"curacao",
+        };
+        return map[n] || n;
+      };
+      const ch = canonTeam(home), ca = canonTeam(away);
+      // Build a canonical lookup of the previews once. Track orientation so we can
+      // assign each key's player to the correct displayed team even when the stored
+      // key order is reversed from the displayed home/away order.
+      let preview = null, flipped = false;
+      for (const k in GAME_PREVIEWS) {
+        const [ph, pa] = k.split("|");
+        const pch = canonTeam(ph), pca = canonTeam(pa);
+        if (pch===ch && pca===ca) { preview = GAME_PREVIEWS[k]; flipped = false; break; }
+        if (pch===ca && pca===ch) { preview = GAME_PREVIEWS[k]; flipped = true; break; }
+      }
+      if (!preview) return null;
+      // homeKey always describes the FIRST team in the stored key. If the stored key
+      // is flipped vs the displayed order, the displayed home team's player is awayKey.
+      const homeSideKey = flipped ? preview.awayKey : preview.homeKey;
+      const awaySideKey = flipped ? preview.homeKey : preview.awayKey;
+
+      return (
+        <div style={{ marginTop:8 }}>
+          <button onClick={() => setOpen(!open)} style={{ background:"rgba(77,184,255,0.1)", border:"1px solid rgba(77,184,255,0.3)", borderRadius:6, color:"#4db8ff", padding:"5px 12px", cursor:"pointer", fontFamily:"Barlow", fontSize:12, fontWeight:600 }}>
+            {open ? "Hide preview ▲" : "🔮 Match preview ▼"}
+          </button>
+          {open && (
+            <div style={{ marginTop:10, padding:"12px", background:"rgba(0,0,0,0.2)", borderRadius:8, border:"1px solid rgba(77,184,255,0.15)" }}>
+              <div style={{ fontFamily:"Barlow", fontSize:13, color:"#cbd5e1", lineHeight:1.5, marginBottom:12 }}>{preview.outlook}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                {[{side:home,k:homeSideKey},{side:away,k:awaySideKey}].map(({side,k},idx) => (
+                  <div key={idx} style={{ background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"8px 10px" }}>
+                    <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", letterSpacing:1, marginBottom:3 }}>⭐ {side.toUpperCase()}</div>
+                    <div style={{ fontFamily:"Barlow", fontSize:13, fontWeight:700, color:"#fbbf24", marginBottom:2 }}>{k?.player}</div>
+                    <div style={{ fontFamily:"Barlow", fontSize:11, color:"#94a3b8", lineHeight:1.4 }}>{k?.note}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function DailySummary({ apiMatches, results, predictions, participants, leaderboard, calcPoints }) {
+      // Helpers to map API match to our match id + names
+      const canonName = (s) => {
+        const n = (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z]/g,"");
+        const map = {
+          "unitedstates":"usa","us":"usa","unitedstatesofamerica":"usa","usmnt":"usa",
+          "korearepublic":"southkorea","republicofkorea":"southkorea","korea":"southkorea",
+          "czechrepublic":"czechia",
+          "irislamicrepublicofiran":"iran","iranislamicrepublic":"iran",
+          "cotedivoire":"ivorycoast",
+          "democraticrepublicofthecongo":"drcongo","congodr":"drcongo","congo":"drcongo",
+          "caboverde":"capeverde","capeverdeislands":"capeverde",
+          "bosniaandherzegovina":"bosniaherzegovina","bosnia":"bosniaherzegovina",
+          "turkiye":"turkey","saudiarabia":"saudiarabia","newzealand":"newzealand","southafrica":"southafrica",
+        };
+        return map[n] || n;
+      };
+      const findOurMatch = (apiMatch) => {
+        const h = canonName(apiMatch.homeTeam?.name), a = canonName(apiMatch.awayTeam?.name);
+        return GROUP_MATCHES.find(m => {
+          const mh = canonName(m.home), ma = canonName(m.away);
+          return (mh===h && ma===a) || (mh===a && ma===h);
+        });
+      };
+
+      const now = new Date();
+      const todayStr = now.toDateString();
+      const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
+      const yestStr = yesterday.toDateString();
+
+      const todays = [], yesterdays = [];
+      (apiMatches||[]).forEach(am => {
+        if (!am.utcDate) return;
+        const d = new Date(am.utcDate);
+        const ds = d.toDateString();
+        const entry = {
+          home: am.homeTeam?.name || "TBD",
+          away: am.awayTeam?.name || "TBD",
+          time: d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}),
+          status: am.status,
+          hs: am.score?.fullTime?.home,
+          as: am.score?.fullTime?.away,
+        };
+        if (ds === todayStr) todays.push(entry);
+        else if (ds === yestStr) yesterdays.push(entry);
+      });
+
+      // Yesterday's prediction analysis: for each finished game yesterday, how many got it right
+      // Analyze a game (live or finished) for how many predicted it right
+      const analyzeGame = (g) => {
+        // Match our game directly using canonical names (handles API name variants
+        // and home/away order differences)
+        const gh = canonName(g.home), ga = canonName(g.away);
+        let our = null, swapped = false;
+        for (const m of GROUP_MATCHES) {
+          const mh = canonName(m.home), ma = canonName(m.away);
+          if (mh===gh && ma===ga) { our = m; swapped = false; break; }
+          if (mh===ga && ma===gh) { our = m; swapped = true; break; }
+        }
+        let correct = 0, exact = 0, total = 0;
+        if (our && g.hs != null) {
+          // Align the real score to OUR home/away orientation
+          const realHome = swapped ? g.as : g.hs;
+          const realAway = swapped ? g.hs : g.as;
+          participants.forEach(p => {
+            const pred = predictions[p.id]?.[our.id];
+            if (!pred || pred.home_score == null) return;
+            total++;
+            const pw = pred.home_score>pred.away_score?"h":pred.home_score<pred.away_score?"d":"a";
+            const rw = realHome>realAway?"h":realHome<realAway?"d":"a";
+            if (pw===rw) correct++;
+            if (pred.home_score===realHome && pred.away_score===realAway) exact++;
+          });
+        }
+        return { correct, exact, total };
+      };
+
+      const yestAnalysis = yesterdays.filter(g => g.hs != null).map(g => ({ ...g, ...analyzeGame(g) }));
+
+      const sectionTitle = { fontFamily:"Barlow", fontSize:11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase", marginBottom:10, marginTop:24 };
+      const card = { background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"12px 14px", marginBottom:8 };
+
+      const leader = leaderboard[0];
+      const dateLabel = now.toLocaleDateString([], {weekday:"long", month:"long", day:"numeric"});
+
+      return (
+        <div>
+          <div style={{ fontFamily:"Bebas Neue", fontSize:26, color:"#fbbf24", letterSpacing:2 }}>📅 DAILY REPORT</div>
+          <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", marginBottom:8 }}>{dateLabel}</div>
+
+          {/* Today's games */}
+          <div style={sectionTitle}>⚽ Today's Matches</div>
+          {todays.length === 0 ? (
+            <div style={{ fontFamily:"Barlow", fontSize:13, color:"#475569" }}>No World Cup matches scheduled today.</div>
+          ) : todays.map((g,i) => {
+            const live = g.status==="IN_PLAY" || g.status==="PAUSED";
+            const done = g.status==="FINISHED";
+            const a = (live || done) ? analyzeGame(g) : null;
+            return (
+              <div key={i} style={card}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: a&&a.total>0?6:0 }}>
+                  <div style={{ fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0" }}>{g.home} {g.hs!=null?g.hs:""} {g.hs!=null?"-":"vs"} {g.as!=null?g.as:""} {g.away}</div>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:14, color: live?"#4ade80": done?"#94a3b8":"#4db8ff", display:"flex", alignItems:"center", gap:4 }}>
+                    {live && <span style={{ width:7, height:7, borderRadius:"50%", background:"#4ade80", display:"inline-block", animation:"pulse 1.5s infinite" }}></span>}
+                    {live ? "LIVE" : done ? "FT" : g.time}
+                  </div>
+                </div>
+                {a && a.total > 0 && (
+                  <div style={{ fontFamily:"Barlow", fontSize:12, color:"#94a3b8" }}>
+                    <span style={{ color:"#4ade80" }}>{a.correct}/{a.total}</span> {live?"currently have":"got"} the result right
+                    {a.exact > 0 && <span style={{ color:"#fbbf24" }}> · {a.exact} on the exact score 🎯</span>}
+                  </div>
+                )}
+                {!live && !done && <GamePreview home={g.home} away={g.away} />}
+              </div>
+            );
+          })}
+
+          {/* Yesterday's recap */}
+          <div style={sectionTitle}>📊 Yesterday's Results</div>
+          {yestAnalysis.length === 0 ? (
+            <div style={{ fontFamily:"Barlow", fontSize:13, color:"#475569" }}>No completed matches yesterday.</div>
+          ) : yestAnalysis.map((g,i) => (
+            <div key={i} style={card}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: g.total>0?6:0 }}>
+                <div style={{ fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0" }}>{g.home} {g.hs}-{g.as} {g.away}</div>
+              </div>
+              {g.total > 0 && (
+                <div style={{ fontFamily:"Barlow", fontSize:12, color:"#94a3b8" }}>
+                  <span style={{ color:"#4ade80" }}>{g.correct}/{g.total}</span> picked the result right
+                  {g.exact > 0 && <span style={{ color:"#fbbf24" }}> · {g.exact} nailed the exact score 🎯</span>}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Leaderboard status */}
+          <div style={sectionTitle}>🏆 Leaderboard</div>
+          {leader ? (
+            <div>
+              <div style={{ ...card, background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.25)" }}>
+                <div style={{ fontFamily:"Barlow", fontSize:13, color:"#fbbf24" }}>
+                  👑 <strong>{leader.name}</strong> leads with <strong>{leader.points} pts</strong>
+                </div>
+              </div>
+              {leaderboard.slice(0,5).map((p,i) => (
+                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", borderRadius:8, marginBottom:5, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:18, color:i<3?["#fbbf24","#94a3b8","#b45309"][i]:"#334155", minWidth:20, textAlign:"center" }}>{i+1}</div>
+                  <div style={{ flex:1, fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0" }}>{p.name}</div>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:20, color:"#fbbf24" }}>{p.points}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontFamily:"Barlow", fontSize:13, color:"#475569" }}>No participants yet.</div>
+          )}
+        </div>
+      );
+    }
+
+    function ThirdPlaceTab({ results }) {
+      // Compute each group's current 3rd-place team from real results.
+      const thirds = [];
+      Object.keys(WC_GROUPS).forEach(g => {
+        const ids = GROUP_MATCHES.filter(m => m.group === g).map(m => m.id);
+        const played = ids.filter(id => results[id]?.home_score != null).length;
+        if (played === 0) return; // group hasn't started
+        const standings = calcGroupStandings(g, results);
+        if (standings[2]) thirds.push({ ...standings[2], group: g, played, total: ids.length });
+      });
+      // Rank by FIFA criteria: pts, GD, GF
+      const ranked = [...thirds].sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf);
+
+      const row = (t, i) => {
+        const advancing = i < 8;
+        const complete = t.played === t.total;
+        return (
+          <div key={t.group} style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 12px", background: advancing?"rgba(74,222,128,0.07)":"rgba(248,113,113,0.05)", borderLeft:`3px solid ${advancing?"#4ade80":"#f87171"}`, borderRadius:6, marginBottom:5 }}>
+            <div style={{ fontFamily:"Bebas Neue", fontSize:16, color:advancing?"#4ade80":"#64748b", width:22, textAlign:"center" }}>{i+1}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontFamily:"Barlow", fontSize:14, fontWeight:700, color:"#e2e8f0" }}>{t.name} <span style={{ fontSize:11, color:"#64748b", fontWeight:400 }}>· Grp {t.group}</span></div>
+              <div style={{ fontFamily:"Barlow", fontSize:10, color:"#64748b" }}>{t.pts} pts · GD {t.gd>0?"+":""}{t.gd} · {t.gf} GF{!complete?` · ${t.played}/${t.total} played`:""}</div>
+            </div>
+            <div style={{ fontFamily:"Barlow", fontSize:10, fontWeight:700, color:advancing?"#4ade80":"#f87171" }}>{advancing?"IN":"OUT"}</div>
+          </div>
+        );
+      };
+
+      return (
+        <div>
+          <div style={{ fontFamily:"Bebas Neue", fontSize:26, color:"#fbbf24", letterSpacing:2 }}>🥉 3RD PLACE RACE</div>
+          <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", marginBottom:16, lineHeight:1.5 }}>
+            The 8 best third-place teams join the knockouts.
+          </div>
+
+          {/* Explainer */}
+          <div style={{ background:"rgba(77,184,255,0.06)", border:"1px solid rgba(77,184,255,0.15)", borderRadius:8, padding:"12px 14px", marginBottom:18 }}>
+            <div style={{ fontFamily:"Bebas Neue", fontSize:15, color:"#4db8ff", letterSpacing:1, marginBottom:6 }}>HOW IT WORKS</div>
+            <div style={{ fontFamily:"Barlow", fontSize:12.5, color:"#cbd5e1", lineHeight:1.6 }}>
+              With 48 teams in 12 groups, the top 2 from each group advance automatically (24 teams). To fill the 32-team Round of 32, the <b style={{color:"#fbbf24"}}>8 best third-place teams</b> also go through — only the 4 worst thirds go home.
+              <br/><br/>
+              All 12 third-place teams are ranked in one table by: <b>1)</b> points, <b>2)</b> goal difference, <b>3)</b> goals scored, <b>4)</b> team conduct (fewest cards), <b>5)</b> FIFA ranking. The top 8 qualify.
+              <br/><br/>
+              In the bracket, <b style={{color:"#fbbf24"}}>8 of the 12 group winners</b> are matched against these third-place teams in the Round of 32 (e.g. "1st E vs 3rd from A/B/C/D/F"). Exactly which third-placer lands in which slot depends on which groups they come from — FIFA's Annex C maps all 495 combinations so two teams from the same group can't meet again until the quarterfinals.
+            </div>
+          </div>
+
+          {/* Live table */}
+          <div style={{ fontFamily:"Bebas Neue", fontSize:15, color:"#fbbf24", letterSpacing:1, marginBottom:8 }}>
+            IN THE HUNT {ranked.length>0 && <span style={{fontFamily:"Barlow",fontSize:11,color:"#64748b",fontWeight:400}}>· top 8 advance (green)</span>}
+          </div>
+          {ranked.length === 0 ? (
+            <div style={{ fontFamily:"Barlow", fontSize:13, color:"#64748b", padding:"16px", textAlign:"center", background:"rgba(255,255,255,0.02)", borderRadius:8 }}>
+              No group games played yet. The 3rd-place race fills in as results come in.
+            </div>
+          ) : (
+            <div>
+              {ranked.map((t,i) => row(t,i))}
+              {ranked.length < 12 && (
+                <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", marginTop:8, fontStyle:"italic" }}>
+                  Showing {ranked.length} of 12 groups — more teams appear as each group plays.
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginTop:14, lineHeight:1.5 }}>
+            Note: standings shift as games are played. Conduct (cards) and FIFA-ranking tiebreakers aren't fully modeled here, so teams level on points/GD/GF may reorder slightly once those apply.
+          </div>
+        </div>
+      );
+    }
+
+    function KnockoutBracket({ myPreds, results, onPredict, locked, actualMode }) {
+      const stages = [
+        { key:"R32", label:"Round of 32", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="R32") },
+        { key:"R16", label:"Round of 16", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="R16") },
+        { key:"QF",  label:"Quarter Finals", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="QF") },
+        { key:"SF",  label:"Semi Finals", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="SF") },
+        { key:"F",   label:"🏆 Final", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="F") },
+      ];
+
+      // Order matches by the bracket TREE rather than by ID, so that the two games
+      // feeding each later-round match sit directly adjacent and lines never cross.
+      // We do a depth-first traversal from the Final back through the feeders; the
+      // R32 leaves come out in the correct top-to-bottom visual order.
+      const byId = {};
+      KNOCKOUT_MATCHES.forEach(m => { byId[m.id] = m; });
+      const leafOrder = [];
+      const visit = (id) => {
+        const m = byId[id];
+        if (!m) return;
+        if (m.feedHome && m.feedAway) {
+          visit(m.feedHome);
+          visit(m.feedAway);
+        } else {
+          leafOrder.push(id); // R32 leaf
+        }
+      };
+      visit("F_1");
+      const r32Rank = {};
+      leafOrder.forEach((id, i) => { r32Rank[id] = i; });
+      // A match's visual rank = average rank of the R32 leaves under it
+      const matchRank = (id) => {
+        const m = byId[id];
+        if (!m) return 0;
+        if (!m.feedHome || !m.feedAway) return r32Rank[id] ?? 0;
+        return (matchRank(m.feedHome) + matchRank(m.feedAway)) / 2;
+      };
+      stages.forEach(st => {
+        st.matches = [...st.matches].sort((a,b) => matchRank(a.id) - matchRank(b.id));
+      });
+
+      // Build group results. In actual mode, myPreds IS the real results object.
+      const groupResults = {};
+      GROUP_MATCHES.forEach(m => {
+        const pred = myPreds[m.id];
+        if (pred?.home_score != null) groupResults[m.id] = pred;
+      });
+
+      // Count how many groups are fully complete (for the actual-mode note)
+      const completeGroups = Object.keys(WC_GROUPS).filter(g =>
+        GROUP_MATCHES.filter(m => m.group === g).every(m => groupResults[m.id]?.home_score != null)
+      ).length;
+
+      // Refs to every match card so we can measure exact positions and draw
+      // pixel-perfect SVG connectors regardless of text wrapping.
+      const cardRefs = React.useRef({});
+      const containerRef = React.useRef(null);
+      const [lines, setLines] = React.useState([]);
+      const [dims, setDims] = React.useState({ w: 0, h: 0 });
+
+      React.useLayoutEffect(() => {
+        const measure = () => {
+          const cont = containerRef.current;
+          if (!cont) return;
+          const cb = cont.getBoundingClientRect();
+          const newLines = [];
+          // For each non-R32 match, draw from its two feeder cards into it
+          KNOCKOUT_MATCHES.forEach(m => {
+            if (!m.feedHome || !m.feedAway) return;
+            const target = cardRefs.current[m.id];
+            if (!target) return;
+            const tb = target.getBoundingClientRect();
+            const tx = tb.left - cb.left;             // left edge of target
+            const ty = tb.top - cb.top + tb.height/2; // vertical center of target
+            [m.feedHome, m.feedAway].forEach(feedId => {
+              const src = cardRefs.current[feedId];
+              if (!src) return;
+              const sb = src.getBoundingClientRect();
+              const sx = sb.right - cb.left;             // right edge of source
+              const sy = sb.top - cb.top + sb.height/2;  // vertical center of source
+              const midX = sx + (tx - sx) / 2;           // elbow midpoint
+              newLines.push({ sx, sy, tx, ty, midX, key: `${feedId}-${m.id}` });
+            });
+          });
+          setLines(newLines);
+          setDims({ w: cont.scrollWidth, h: cont.scrollHeight });
+        };
+        measure();
+        // Re-measure on resize
+        window.addEventListener("resize", measure);
+        const t = setTimeout(measure, 100); // after fonts settle
+        return () => { window.removeEventListener("resize", measure); clearTimeout(t); };
+      }, [myPreds, results, actualMode]);
+
+      return (
+        <div>
+          <div style={{ fontFamily:"Barlow", fontSize:12, color:"#475569", marginBottom:12 }}>
+            {actualMode
+              ? `📡 Live bracket from real results · ${completeGroups}/12 groups complete${completeGroups<12?" (fills in as groups finish)":""}`
+              : "Scroll → to see all rounds · Tap team to pick winner"}
+          </div>
+          <div style={{ overflowX:"auto", paddingBottom:12 }}>
+            <div ref={containerRef} style={{ position:"relative", display:"flex", gap:28, minWidth: stages.length * 200 }}>
+              {/* SVG connector layer */}
+              <svg style={{ position:"absolute", top:0, left:0, width:dims.w, height:dims.h, pointerEvents:"none", zIndex:0 }}>
+                {lines.map(l => (
+                  <path key={l.key}
+                    d={`M ${l.sx} ${l.sy} H ${l.midX} V ${l.ty} H ${l.tx}`}
+                    fill="none" stroke="rgba(251,191,36,0.3)" strokeWidth="1.5" />
+                ))}
+              </svg>
+              {stages.map((stage, stageIdx) => {
+                // Spacing units to lay cards out in bracket shape
+                const CARD = 62, GAP0 = 26, UNIT = CARD + GAP0;
+                const factor = Math.pow(2, stageIdx);
+                const firstTop = stageIdx === 0 ? 0 : (UNIT * (factor - 1)) / 2;
+                const between = stageIdx === 0 ? GAP0 : (UNIT * factor - CARD);
+                return (
+                <div key={stage.key} style={{ flex:1, minWidth:172, display:"flex", flexDirection:"column", position:"relative", zIndex:1 }}>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:12, color:"#fbbf24", letterSpacing:1, textAlign:"center", padding:"0 4px 8px", borderBottom:"1px solid rgba(251,191,36,0.15)", marginBottom:8 }}>
+                    {stage.label}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", paddingTop: firstTop }}>
+                    {stage.matches.map((m, matchIdx) => {
+                      const teams = resolveKnockoutTeams(m.id, myPreds, groupResults, myPreds, actualMode);
+                      const homeName = teams.home;
+                      const awayName = teams.away;
+                      const isTBD = homeName==="TBD" || awayName==="TBD";
+
+                      const pred = myPreds[m.id];
+                      const result = results[m.id];
+                      const myWinner = pred ? (pred.home_score > pred.away_score ? "home" : "away") : null;
+                      const actualWinner = result?.home_score != null ? (result.home_score > result.away_score ? "home" : "away") : null;
+                      const correct = myWinner && actualWinner && myWinner === actualWinner;
+
+                      return (
+                        <div key={m.id}
+                          ref={el => { cardRefs.current[m.id] = el; }}
+                          style={{ marginBottom: matchIdx < stage.matches.length-1 ? between : 0, background:"rgba(15,23,42,0.85)", border:`1px solid ${correct?"rgba(74,222,128,0.3)":pred?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.08)"}`, borderRadius:8, overflow:"hidden" }}>
+                          {[{name:homeName,side:"home"},{name:awayName,side:"away"}].map(({name,side},idx) => {
+                            const isMyPick = myWinner===side;
+                            const isWinner = actualWinner===side;
+                            const score = side==="home" ? result?.home_score : result?.away_score;
+                            return (
+                              <div key={side}
+                                onClick={() => onPredict && !isTBD && onPredict(m.id, side)}
+                                style={{
+                                  padding:"7px 8px",
+                                  cursor: onPredict && !isTBD ? "pointer" : "default",
+                                  background: isMyPick ? (actualWinner ? (correct?"rgba(74,222,128,0.2)":"rgba(248,113,113,0.15)") : "rgba(251,191,36,0.15)") : "transparent",
+                                  borderBottom: idx===0 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                                  display:"flex", justifyContent:"space-between", alignItems:"center",
+                                  transition:"background 0.15s",
+                                }}>
+                                <span style={{ fontFamily:"Barlow", fontSize:11, fontWeight:600, color:isTBD||name.includes("1st")||name.includes("2nd")||name.includes("3rd")||name.includes("Winner")?"#475569":"#e2e8f0", flex:1, lineHeight:1.2 }}>{name}</span>
+                                <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+                                  {score != null && <span style={{ fontFamily:"Bebas Neue", fontSize:13, color:isWinner?"#4ade80":"#64748b" }}>{score}</span>}
+                                  {isMyPick && !actualWinner && <span style={{ fontSize:9, color:"#fbbf24" }}>●</span>}
+                                  {isMyPick && correct && <span style={{ fontSize:9, color:"#4ade80" }}>✓</span>}
+                                  {isMyPick && actualWinner && !correct && <span style={{ fontSize:9, color:"#f87171" }}>✗</span>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {m.date && (
+                            <div style={{ padding:"4px 8px", background:"rgba(0,0,0,0.25)", borderTop:"1px solid rgba(255,255,255,0.06)", fontFamily:"Barlow", fontSize:8.5, color:"#64748b", display:"flex", justifyContent:"space-between", gap:4, lineHeight:1.2 }}>
+                              <span>{m.date} · {m.time}</span>
+                              <span style={{ color:"#475569" }}>📍{m.venue}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function MatchCard({ match, myPred, result, onPredict, stage, label, locked }) {
+      const [hs, setHs] = useState(myPred?.home_score ?? "");
+      const [as_, setAs] = useState(myPred?.away_score ?? "");
+      const hasResult = result?.home_score != null;
+      const hasPred = myPred?.home_score != null;
+
+      const predCorrect = hasPred && hasResult && (() => {
+        if (stage === "group") {
+          const pw = myPred.home_score > myPred.away_score?"home":myPred.home_score<myPred.away_score?"away":"draw";
+          const rw = result.home_score > result.away_score?"home":result.home_score<result.away_score?"away":"draw";
+          return pw === rw;
+        } else {
+          const pw = myPred.home_score > myPred.away_score?"home":"away";
+          const rw = result.home_score > result.away_score?"home":"away";
+          return pw === rw;
+        }
+      })();
+      const exactScore = hasPred && hasResult && myPred.home_score===result.home_score && myPred.away_score===result.away_score;
+
+      const borderColor = hasResult ? (predCorrect ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.2)") : hasPred ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.06)";
+
+      return (
+        <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${borderColor}`, borderRadius:8, padding:"10px 12px", marginBottom:6 }}>
+          {label && <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginBottom:4 }}>{label}</div>}
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            {/* Home team */}
+            <div style={{ flex:1, fontFamily:"Barlow", fontSize:13, fontWeight:600, color:"#e2e8f0", textAlign:"right", lineHeight:1.2 }}>{match.home}</div>
+
+            {/* Score area */}
+            <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+              {hasResult ? (
+                <>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:20, color:predCorrect?"#4ade80":"#f87171", minWidth:18, textAlign:"center" }}>{result.home_score}</span>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:14, color:"#475569" }}>-</span>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:20, color:predCorrect?"#4ade80":"#f87171", minWidth:18, textAlign:"center" }}>{result.away_score}</span>
+                </>
+              ) : onPredict ? (
+                <>
+                  <input type="number" min="0" max="20" value={hs}
+                    onChange={e=>{ const v=e.target.value; setHs(v); if(v!==""&&as_!=="") onPredict(match.id, Number(v), Number(as_)); }}
+                    onBlur={() => hs!==""&&as_!==""&&onPredict(match.id, Number(hs), Number(as_))}
+                    style={{ width:36, textAlign:"center", fontFamily:"Bebas Neue", fontSize:18, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:5, color:"#fbbf24", padding:"4px 2px", outline:"none", MozAppearance:"textfield" }} />
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:14, color:"#475569" }}>-</span>
+                  <input type="number" min="0" max="20" value={as_}
+                    onChange={e=>{ const v=e.target.value; setAs(v); if(hs!==""&&v!=="") onPredict(match.id, Number(hs), Number(v)); }}
+                    onBlur={() => hs!==""&&as_!==""&&onPredict(match.id, Number(hs), Number(as_))}
+                    style={{ width:36, textAlign:"center", fontFamily:"Bebas Neue", fontSize:18, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:5, color:"#fbbf24", padding:"4px 2px", outline:"none", MozAppearance:"textfield" }} />
+                </>
+              ) : (
+                <>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:18, color:hasPred?"#fbbf24":"#334155", minWidth:18, textAlign:"center" }}>{hasPred?myPred.home_score:"?"}</span>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:14, color:"#334155" }}>-</span>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:18, color:hasPred?"#fbbf24":"#334155", minWidth:18, textAlign:"center" }}>{hasPred?myPred.away_score:"?"}</span>
+                </>
+              )}
+            </div>
+
+            {/* Away team */}
+            <div style={{ flex:1, fontFamily:"Barlow", fontSize:13, fontWeight:600, color:"#e2e8f0", lineHeight:1.2 }}>{match.away}</div>
+
+            {/* Status indicator */}
+            <div style={{ flexShrink:0, width:20, textAlign:"center" }}>
+              {exactScore ? <span style={{ fontSize:12 }}>🎯</span>
+               : predCorrect ? <span style={{ fontSize:12, color:"#4ade80" }}>✓</span>
+               : hasResult && hasPred ? <span style={{ fontSize:12, color:"#f87171" }}>✗</span>
+               : hasPred ? <span style={{ fontSize:10, color:"#fbbf24" }}>●</span>
+               : locked ? <span style={{ fontSize:10 }}>🔒</span>
+               : null}
+            </div>
+          </div>
+
+          {/* My prediction shown below if result is in */}
+          {hasPred && hasResult && (
+            <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginTop:4, textAlign:"center" }}>
+              Your pick: <span style={{ color:"#fbbf24" }}>{myPred.home_score}–{myPred.away_score}</span>
+              {predCorrect && <span style={{ color:"#4ade80", marginLeft:4 }}>+2pts</span>}
+              {exactScore && <span style={{ color:"#fbbf24", marginLeft:4 }}>+1pt exact!</span>}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function AdminMatchCard({ match, result, onSave, label }) {
+      const [hs, setHs] = useState(result?.home_score ?? "");
+      const [as_, setAs] = useState(result?.away_score ?? "");
+      return (
+        <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(248,113,113,0.15)", borderRadius:8, padding:"14px 16px", marginBottom:8 }}>
+          {label && <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", marginBottom:6 }}>{label}</div>}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ flex:1, fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0" }}>{match.home}</div>
+            <input type="number" min="0" value={hs} onChange={e=>setHs(e.target.value)}
+              style={{ width:48, textAlign:"center", fontFamily:"Bebas Neue", fontSize:22, background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:6, color:"#f87171", padding:"5px", outline:"none" }} />
+            <span style={{ fontFamily:"Bebas Neue", color:"#475569" }}>–</span>
+            <input type="number" min="0" value={as_} onChange={e=>setAs(e.target.value)}
+              style={{ width:48, textAlign:"center", fontFamily:"Bebas Neue", fontSize:22, background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:6, color:"#f87171", padding:"5px", outline:"none" }} />
+            <div style={{ flex:1, fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0", textAlign:"right" }}>{match.away}</div>
+            <button onClick={() => hs!==""&&as_!==""&&onSave(match.id, Number(hs), Number(as_))}
+              style={{ background:"rgba(248,113,113,0.15)", border:"1px solid #f87171", borderRadius:6, color:"#f87171", padding:"6px 12px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:14 }}>SAVE</button>
+          </div>
+          {result?.home_score!=null && <div style={{ fontFamily:"Barlow", fontSize:11, color:"#4ade80", marginTop:6 }}>✓ Result saved: {result.home_score}–{result.away_score}</div>}
+        </div>
+      );
+    }
+
+    function SummaryView({ games, gameStats, playerStats, players, team, rec, getGS }) {
+      const [now, setNow] = useState(new Date());
+      useEffect(() => {
+        const interval = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(interval);
+      }, []);
+
+      const parseGameDate = (g) => {
+        try {
+          const d = new Date(`${g.date} 2026 ${g.time}`);
+          return isNaN(d) ? null : d;
+        } catch { return null; }
+      };
+
+      const gamesWithDates = games.map(g => ({ ...g, parsedDate: parseGameDate(g) }))
+        .filter(g => g.parsedDate)
+        .sort((a,b) => a.parsedDate - b.parsedDate);
+
+      const upcoming = gamesWithDates.filter(g => g.parsedDate > now);
+      const past = gamesWithDates.filter(g => g.parsedDate <= now);
+      const nextGame = upcoming[0];
+
+      let countdown = null;
+      if (nextGame) {
+        const diff = nextGame.parsedDate - now;
+        if (diff > 0) {
+          countdown = {
+            days: Math.floor(diff / (1000*60*60*24)),
+            hours: Math.floor((diff % (1000*60*60*24)) / (1000*60*60)),
+            mins: Math.floor((diff % (1000*60*60)) / (1000*60)),
+          };
+        }
+      }
+
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+      const reminders = gamesWithDates.filter(g => {
+        const gd = new Date(g.parsedDate.getFullYear(), g.parsedDate.getMonth(), g.parsedDate.getDate());
+        return gd.getTime() === tomorrow.getTime();
+      });
+
+      const recentPast = [...past].reverse().slice(0, 3);
+      const opp2 = (g) => g.home === team.name ? g.away : g.home;
+      const isHome2 = (g) => g.home === team.name;
+
+      const makeIcs = (g) => {
+        try {
+          const start = new Date(`${g.date} 2026 ${g.time}`);
+          const end = new Date(start.getTime() + 90*60*1000);
+          const fmt = (d) => d.toISOString().replace(/-|:|\.\d+/g,"").slice(0,15)+"Z";
+          const ics = ["BEGIN:VCALENDAR","VERSION:2.0","BEGIN:VEVENT",
+            `DTSTART:${fmt(start)}`,`DTEND:${fmt(end)}`,
+            `SUMMARY:${team.name} vs ${opp2(g)}`,
+            `LOCATION:Field ${g.field}`,
+            `DESCRIPTION:${isHome2(g)?"Home":"Away"} game vs ${opp2(g)}`,
+            "BEGIN:VALARM","TRIGGER:-P1D","ACTION:DISPLAY","DESCRIPTION:Game tomorrow!","END:VALARM",
+            "END:VEVENT","END:VCALENDAR"].join("\r\n");
+          const blob = new Blob([ics],{type:"text/calendar;charset=utf-8"});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href=url; a.download="game.ics"; a.click();
+          URL.revokeObjectURL(url);
+        } catch(e) { alert("Couldn't create event."); }
+      };
+
+      return (
+        <div>
+          {/* Reminder banner */}
+          {reminders.length > 0 && (
+            <div style={{ background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:10, padding:"14px 18px", marginBottom:20 }}>
+              <div style={{ fontFamily:"Bebas Neue", fontSize:20, color:"#fbbf24", letterSpacing:2, marginBottom:6 }}>🔔 GAME TOMORROW!</div>
+              {reminders.map(g => (
+                <div key={g.id} style={{ fontFamily:"Barlow", fontSize:14, color:"#e2e8f0" }}>
+                  vs <strong>{opp2(g)}</strong> · {isHome2(g)?"Home":"Away"} · {g.time} · Field {g.field}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Next game countdown */}
+          {nextGame && countdown && (
+            <div style={{ background:"rgba(77,184,255,0.07)", border:"1px solid rgba(77,184,255,0.2)", borderRadius:10, padding:"20px", marginBottom:20 }}>
+              <div className="section-title" style={{ marginBottom:8 }}>Next Game</div>
+              <div style={{ fontFamily:"Barlow", fontSize:16, fontWeight:600, color:"#7dd3fc", marginBottom:4 }}>
+                vs {opp2(nextGame)} · {isHome2(nextGame)?"Home":"Away"}
+              </div>
+              <div style={{ fontFamily:"Barlow", fontSize:13, color:"#64748b", marginBottom:16 }}>
+                {nextGame.date} · {nextGame.time} · Field {nextGame.field}
+              </div>
+              <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+                {[{val:countdown.days,label:"DAYS"},{val:countdown.hours,label:"HRS"},{val:countdown.mins,label:"MIN"}].map(({val,label}) => (
+                  <div key={label} style={{ flex:1, background:"rgba(0,0,0,0.2)", borderRadius:8, padding:"14px 8px", textAlign:"center", border:"1px solid rgba(77,184,255,0.15)" }}>
+                    <div style={{ fontFamily:"Bebas Neue", fontSize:40, color:"#4db8ff", lineHeight:1 }}>{val}</div>
+                    <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", letterSpacing:2, marginTop:4 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => makeIcs(nextGame)} style={{ width:"100%", background:"rgba(77,184,255,0.15)", border:"1px solid #4db8ff", borderRadius:8, color:"#4db8ff", padding:"12px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:18, letterSpacing:2 }}>
+                📅 ADD TO CALENDAR
+              </button>
+            </div>
+          )}
+
+          {/* Top Players */}
+          {players.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div className="section-title">Top Players</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+                {[
+                  { label:"⚽ Top Scorer", key:"goals", color:"#4db8ff" },
+                  { label:"🎯 Top Assist", key:"assists", color:"#34d399" },
+                  { label:"⭐ Most MVP", key:"mvps", color:"#fbbf24" },
+                ].map(({ label, key, color }) => {
+                  const stats = players.map(p => {
+                    let goals=0, assists=0, mvps=0;
+                    Object.entries(playerStats || {}).forEach(([gid, gps]) => {
+                      const ps = gps[p.id];
+                      if (ps) { goals+=ps.goals||0; assists+=ps.assists||0; }
+                    });
+                    Object.values(gameStats || {}).forEach(gs => { if(gs.mvp===p.id) mvps++; });
+                    return { ...p, goals, assists, mvps };
+                  });
+                  const top = stats.sort((a,b) => b[key]-a[key])[0];
+                  const val = top?.[key] || 0;
+                  return (
+                    <div key={key} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${color}33`, borderRadius:10, padding:"14px 10px", textAlign:"center" }}>
+                      <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", letterSpacing:1, marginBottom:8 }}>{label}</div>
+                      <div style={{ fontFamily:"Bebas Neue", fontSize:28, color, lineHeight:1, marginBottom:4 }}>{val}</div>
+                      <div style={{ fontFamily:"Barlow", fontSize:12, fontWeight:600, color:"#e2e8f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {val > 0 ? (top?.number ? `#${top.number} ` : "") + top?.name : "—"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Season record */}
+          <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:10, padding:"16px 20px", marginBottom:20 }}>
+            <div className="section-title" style={{ marginBottom:12 }}>Season Record</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, textAlign:"center" }}>
+              {[{val:rec.wins,label:"WINS",color:"#4ade80"},{val:rec.losses,label:"LOSSES",color:"#f87171"},{val:rec.draws,label:"DRAWS",color:"#facc15"},{val:rec.cleanSheets,label:"CLEAN SH.",color:"#4db8ff"}].map(({val,label,color}) => (
+                <div key={label} style={{ background:"rgba(0,0,0,0.15)", borderRadius:8, padding:"12px 6px", border:`1px solid ${color}22` }}>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:34, color, lineHeight:1 }}>{val}</div>
+                  <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", letterSpacing:1, marginTop:4 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent results */}
+          {recentPast.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div className="section-title">Recent Results</div>
+              {recentPast.map(g => {
+                const gs = getGS(g.id);
+                const played = gs.score_us !== "" && gs.score_them !== "";
+                const us = Number(gs.score_us), them = Number(gs.score_them);
+                const result = played ? (us>them?"W":us<them?"L":"D") : null;
+                const mvpPlayer = gs.mvp ? players.find(p=>p.id===gs.mvp) : null;
+                return (
+                  <div key={g.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"14px 16px", marginBottom:8, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div>
+                      <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", marginBottom:3 }}>{g.date} · {isHome2(g)?"HOME":"AWAY"}</div>
+                      <div style={{ fontFamily:"Barlow", fontSize:15, fontWeight:600, color:"#e2e8f0" }}>vs {opp2(g)}</div>
+                      {mvpPlayer && <div style={{ fontFamily:"Barlow", fontSize:11, color:"#fbbf24", marginTop:2 }}>⭐ {mvpPlayer.name}</div>}
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      {played && <div style={{ fontFamily:"Bebas Neue", fontSize:28, color:"#fff" }}>{gs.score_us}–{gs.score_them}</div>}
+                      {result && (
+                        <div style={{ width:32, height:32, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Bebas Neue", fontSize:18,
+                          background:result==="W"?"rgba(74,222,128,0.15)":result==="L"?"rgba(248,113,113,0.15)":"rgba(250,204,21,0.15)",
+                          color:result==="W"?"#4ade80":result==="L"?"#f87171":"#facc15" }}>{result}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Upcoming games */}
+          {upcoming.length > 0 && (
+            <div>
+              <div className="section-title">Upcoming Games</div>
+              {upcoming.slice(0,5).map(g => (
+                <div key={g.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"12px 16px", marginBottom:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div>
+                      <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", marginBottom:2 }}>{g.date} · {isHome2(g)?"HOME":"AWAY"} · Field {g.field}</div>
+                      <div style={{ fontFamily:"Barlow", fontSize:15, fontWeight:600, color:"#e2e8f0" }}>vs {opp2(g)}</div>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ fontFamily:"Bebas Neue", fontSize:16, color:"#4db8ff" }}>{g.time}</div>
+                      <button onClick={() => makeIcs(g)} style={{ background:"rgba(77,184,255,0.1)", border:"1px solid rgba(77,184,255,0.3)", borderRadius:6, color:"#4db8ff", padding:"5px 8px", cursor:"pointer", fontFamily:"Barlow", fontSize:12 }}>📅</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function GameDetail({ game, teamName, opponent, gs, players, getPS, onUpdateGS, onBack, onUpdatePS, isEditor }) {
+      const [saving, setSaving] = useState({});
+
+      const handleGS = async (fields) => {
+        await onUpdateGS(fields);
+      };
+
+      const handlePS = async (playerId, field, value) => {
+        const key = `${playerId}-${field}`;
+        setSaving(prev => ({ ...prev, [key]: true }));
+        await onUpdatePS(playerId, { [field]: value });
+        setSaving(prev => ({ ...prev, [key]: false }));
+      };
+
+      return (
+        <div>
+          <button onClick={onBack} style={{ background:"none", border:"none", color:"#4db8ff", cursor:"pointer", fontFamily:"Barlow", fontSize:14, marginBottom:20, display:"flex", alignItems:"center", gap:6 }}>
+            ← Back to Schedule
+          </button>
+          <div style={{ background:"rgba(77,184,255,0.07)", border:"1px solid rgba(77,184,255,0.2)", borderRadius:10, padding:"20px", marginBottom:24 }}>
+            <div style={{ fontFamily:"Barlow", fontSize:12, color:"#64748b", letterSpacing:2, marginBottom:6 }}>
+              {game.day.toUpperCase()} {game.date} · {game.time} · Field {game.field}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:16 }}>
+              <div style={{ fontFamily:"Bebas Neue", fontSize:26, color:"#4db8ff" }}>
+                {teamName.toUpperCase()} <span style={{ color:"#475569", fontSize:18 }}>vs</span> {opponent.toUpperCase()}
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                {isEditor ? (
+                  <>
+                    <input className="score-input" type="number" min="0" placeholder="0"
+                      defaultValue={gs.score_us}
+                      onBlur={e => handleGS({ score_us: e.target.value })} />
+                    <span style={{ fontFamily:"Bebas Neue", fontSize:28, color:"#475569" }}>–</span>
+                    <input className="score-input" type="number" min="0" placeholder="0"
+                      defaultValue={gs.score_them}
+                      onBlur={e => handleGS({ score_them: e.target.value })} />
+                  </>
+                ) : (
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:36, color:"#fff" }}>
+                    {gs.score_us||"–"} <span style={{ color:"#475569" }}>:</span> {gs.score_them||"–"}
+                  </div>
+                )}
+              </div>
+            </div>
+            {isEditor && (
+            <div style={{ display:"flex", gap:20, marginTop:16, flexWrap:"wrap", alignItems:"center" }}>
+              <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontFamily:"Barlow", fontSize:14 }}>
+                <input type="checkbox" defaultChecked={gs.clean_sheet}
+                  onChange={e => handleGS({ clean_sheet: e.target.checked })}
+                  style={{ width:16, height:16, accentColor:"#4db8ff" }} />
+                <span style={{ color:"#94a3b8" }}>🧤 Team Clean Sheet</span>
+              </label>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:200 }}>
+                <span style={{ fontFamily:"Barlow", fontSize:14, color:"#fbbf24", whiteSpace:"nowrap" }}>⭐ MVP</span>
+                <select className="mvp-select" defaultValue={gs.mvp}
+                  onChange={e => handleGS({ mvp: e.target.value })}>
+                  <option value="">— Select MVP —</option>
+                  {players.map(p => <option key={p.id} value={p.id}>{p.number?`#${p.number} `:""}{p.name}</option>)}
+                </select>
+              </div>
+            </div>
+            )}
+            {!isEditor && gs.mvp && (
+              <div style={{ marginTop:12, fontFamily:"Barlow", fontSize:14, color:"#fbbf24" }}>
+                ⭐ MVP: {players.find(p=>p.id===gs.mvp)?.name || ""}
+                {gs.clean_sheet && <span style={{ marginLeft:16, color:"#4db8ff" }}>🧤 Clean Sheet</span>}
+              </div>
+            )}
+          </div>
+
+          <div className="section-title">Player Stats</div>
+          {players.map(player => {
+            const ps = getPS(game.id, player.id);
+            const isMvp = gs.mvp === player.id;
+            return (
+              <div key={player.id} style={{
+                borderRadius:8, marginBottom:8, overflow:"hidden",
+                background:isMvp?"rgba(251,191,36,0.08)":"rgba(255,255,255,0.03)",
+                border:`1px solid ${isMvp?"rgba(251,191,36,0.3)":"rgba(255,255,255,0.06)"}`,
+              }}>
+                {/* Player name row */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+                  {player.number && <span style={{ fontFamily:"Bebas Neue", fontSize:16, color:"#4db8ff", flexShrink:0 }}>#{player.number}</span>}
+                  <span style={{ fontFamily:"Barlow", fontSize:15, fontWeight:600, color:isMvp?"#fbbf24":"#e2e8f0", flex:1 }}>{isMvp?"⭐ ":""}{player.name}</span>
+                  {/* Appeared toggle */}
+                  {isEditor ? (
+                    <button onClick={() => handlePS(player.id, "appeared", !ps.appeared)}
+                      style={{ background:ps.appeared?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)", border:`1px solid ${ps.appeared?"#4ade80":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:ps.appeared?"#4ade80":"#475569", padding:"4px 10px", cursor:"pointer", fontFamily:"Barlow", fontSize:11, fontWeight:600, flexShrink:0 }}>
+                      {ps.appeared?"✓ PLAYED":"PLAYED?"}
+                    </button>
+                  ) : ps.appeared ? (
+                    <span style={{ fontFamily:"Barlow", fontSize:11, color:"#4ade80" }}>✓</span>
+                  ) : null}
+                  {/* Clean sheet toggle */}
+                  {isEditor ? (
+                    <button onClick={() => handlePS(player.id, "clean_sheet", !ps.clean_sheet)}
+                      style={{ background:ps.clean_sheet?"rgba(77,184,255,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${ps.clean_sheet?"#4db8ff":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:ps.clean_sheet?"#4db8ff":"#475569", padding:"4px 10px", cursor:"pointer", fontFamily:"Barlow", fontSize:11, fontWeight:600, flexShrink:0 }}>
+                      🧤 {ps.clean_sheet?"✓":"—"}
+                    </button>
+                  ) : ps.clean_sheet ? (
+                    <span style={{ fontFamily:"Barlow", fontSize:12, color:"#4db8ff" }}>🧤</span>
+                  ) : null}
+                </div>
+                {/* Stats row */}
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", padding:"10px 8px", gap:4 }}>
+                  {[
+                    {field:"goals", color:"#4db8ff", label:"⚽ GOALS", val:ps.goals},
+                    {field:"assists", color:"#34d399", label:"🎯 ASST", val:ps.assists},
+                    {field:"yellow_cards", color:"#fbbf24", label:"🟨 YEL", val:ps.yellow_cards},
+                    {field:"red_cards", color:"#f87171", label:"🟥 RED", val:ps.red_cards},
+                  ].map(({field,color,label,val}) => (
+                    <div key={field} style={{ textAlign:"center" }}>
+                      <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginBottom:4 }}>{label}</div>
+                      {isEditor ? (
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                          <button onClick={() => handlePS(player.id, field, Math.max(0,(val||0)-1))}
+                            style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${color}44`, background:`${color}18`, color, cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>−</button>
+                          <span style={{ fontFamily:"Bebas Neue", fontSize:24, color:(val||0)>0?color:"#334155", minWidth:24, textAlign:"center" }}>{val||0}</span>
+                          <button onClick={() => handlePS(player.id, field, (val||0)+1)}
+                            style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${color}44`, background:`${color}18`, color, cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>+</button>
+                        </div>
+                      ) : (
+                        <div style={{ fontFamily:"Bebas Neue", fontSize:24, color:(val||0)>0?color:"#334155" }}>{val||0}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function RosterView({ players, onAdd, onUpdate, onDelete, isEditor }) {
+      const [editingId, setEditingId] = useState(null);
+      const [editName, setEditName] = useState("");
+      const [editNumber, setEditNumber] = useState("");
+      const [newName, setNewName] = useState("");
+      const [newNumber, setNewNumber] = useState("");
+      const [saving, setSaving] = useState(false);
+
+      const handleAdd = async () => {
+        if (!newName.trim()) return;
+        setSaving(true);
+        await onAdd(newName.trim(), newNumber);
+        setNewName(""); setNewNumber("");
+        setSaving(false);
+      };
+
+      const handleSave = async (id) => {
+        await onUpdate(id, editName, editNumber);
+        setEditingId(null);
+      };
+
+      return (
+        <div>
+          <div className="section-title">{isEditor ? "Manage Roster" : "Roster"}</div>
+          <div style={{ display:"grid", gridTemplateColumns:"52px 1fr auto", gap:10, padding:"4px 14px", marginBottom:6 }}>
+            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", textAlign:"center" }}>#</div>
+            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569" }}>NAME</div>
+          </div>
+          {players.map(p => (
+            <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, background:"rgba(255,255,255,0.03)", padding:"10px 14px", borderRadius:6, border:"1px solid rgba(255,255,255,0.06)" }}>
+              {isEditor && editingId===p.id ? (
+                <>
+                  <input type="number" value={editNumber} onChange={e=>setEditNumber(e.target.value)} placeholder="#" className="shirt-input" min="1" max="99" />
+                  <input type="text" value={editName} onChange={e=>setEditName(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter") handleSave(p.id); }} autoFocus style={{ flex:1 }} />
+                  <button onClick={()=>handleSave(p.id)} className="btn btn-primary" style={{ padding:"5px 12px", fontSize:13 }}>Save</button>
+                  <button onClick={()=>setEditingId(null)} style={{ background:"none", border:"1px solid #334155", borderRadius:5, color:"#64748b", padding:"5px 10px", cursor:"pointer", fontFamily:"Barlow" }}>✕</button>
+                </>
+              ) : (
+                <>
+                  <div style={{ width:36, height:36, borderRadius:6, background:"rgba(77,184,255,0.1)", border:"1px solid rgba(77,184,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Bebas Neue", fontSize:18, color:"#4db8ff", flexShrink:0 }}>
+                    {p.number || "—"}
+                  </div>
+                  <span style={{ flex:1, fontFamily:"Barlow", fontSize:15, color:"#cbd5e1" }}>{p.name}</span>
+                  {isEditor && <>
+                    <button onClick={()=>{ setEditingId(p.id); setEditName(p.name); setEditNumber(p.number||""); }}
+                      style={{ background:"none", border:"1px solid rgba(77,184,255,0.3)", borderRadius:5, color:"#4db8ff", padding:"5px 12px", cursor:"pointer", fontFamily:"Barlow", fontSize:13 }}>Edit</button>
+                    <button onClick={()=>onDelete(p.id)}
+                      style={{ background:"none", border:"1px solid rgba(248,113,113,0.3)", borderRadius:5, color:"#f87171", padding:"5px 10px", cursor:"pointer", fontFamily:"Barlow", fontSize:13 }}>✕</button>
+                  </>}
+                </>
+              )}
+            </div>
+          ))}
+          {isEditor && (
+            <div style={{ display:"flex", gap:10, marginTop:16 }}>
+              <input type="number" placeholder="#" value={newNumber} onChange={e=>setNewNumber(e.target.value)} className="shirt-input" min="1" max="99" />
+              <input type="text" placeholder="Player name..." value={newName} onChange={e=>setNewName(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter") handleAdd(); }} style={{ flex:1 }} />
+              <button onClick={handleAdd} disabled={saving} className="btn btn-primary" style={{ fontFamily:"Bebas Neue", fontSize:18, letterSpacing:1 }}>
+                {saving ? <div className="spinner" /> : "+ ADD"}
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
